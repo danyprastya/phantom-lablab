@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: phantom-backend
+    runtime: python
+    region: oregon
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: BRIGHT_DATA_API_KEY
+        sync: false
+      - key: BRIGHT_DATA_SERP_ZONE
+        value: phantom_serp_api
+      - key: BRIGHT_DATA_WEB_SCRAPER_ZONE
+        value: phantom_web_scraper
+      - key: BRIGHT_DATA_WEB_UNLOCKER_ZONE
+        value: phantom_web_unlocker
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://phantom-lablab.vercel.app
+      - key: RATE_LIMIT
+        value: 5/minute
