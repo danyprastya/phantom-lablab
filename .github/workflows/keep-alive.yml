@@ -1,4 +1,4 @@
-name: Keep Alive (Render Cold Start Prevention)
+name: Keep Alive (Cold Start Prevention)
 
 on:
   schedule:
@@ -11,4 +11,4 @@ jobs:
     steps:
       - name: Ping backend health endpoint
         run: |
-          curl -s -o /dev/null -w "%{http_code}" "${{ secrets.RENDER_BACKEND_URL }}/health" || true
+          curl -s -o /dev/null -w "%{http_code}" "${{ secrets.BACKEND_URL }}/health" || true
