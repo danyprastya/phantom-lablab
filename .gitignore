@@ -1,12 +1,6 @@
 # Dependencies
 node_modules/
-frontend/node_modules/
-backend/venv/
-backend/__pycache__/
-backend/**/__pycache__/
-**/__pycache__/
-*.pyc
-*.pyo
+**/node_modules/
 
 # Environment variables
 .env
@@ -14,13 +8,15 @@ backend/**/__pycache__/
 .env.production
 .env.*.local
 
-# Next.js
+# Frontend (Next.js)
 frontend/.next/
 frontend/out/
-
-# Build
 frontend/build/
-dist/
+frontend/next-env.d.ts
+
+# Server (TypeScript)
+server/dist/
+server/node_modules/
 
 # IDE
 .vscode/
@@ -35,13 +31,6 @@ Thumbs.db
 # Logs
 *.log
 npm-debug.log*
-
-# Python
-*.egg-info/
-*.egg
-.eggs/
-build/
-develop-eggs/
 
 # Misc
 *.bak
