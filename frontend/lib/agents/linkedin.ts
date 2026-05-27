@@ -1,8 +1,9 @@
-import { env } from "../../config/env.js";
-import { BRIGHT_DATA_API_URL } from "../../data/index.js";
-import type { LinkedInSignals } from "../../types/index.js";
+import { getEnv } from "@/lib/config/env";
+import { BRIGHT_DATA_API_URL } from "@/lib/data";
+import type { LinkedInSignals } from "@/lib/types";
 
 export async function fetchLinkedInSignals(query: string, company?: string): Promise<LinkedInSignals | null> {
+  const env = getEnv();
   const searchTarget = company || query;
   const linkedinUrl = `https://www.linkedin.com/company/${slugify(searchTarget)}/about/`;
 
@@ -27,7 +28,7 @@ export async function fetchLinkedInSignals(query: string, company?: string): Pro
     });
 
     if (!response.ok) {
-      console.error(`LinkedIn HTTP ${response.status}: ${await response.text().catch(() => "").then((t) => t.slice(0, 300))}`);
+      console.error(`LinkedIn HTTP ${response.status}`);
       return null;
     }
 

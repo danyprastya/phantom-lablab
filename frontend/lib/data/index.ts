@@ -7,7 +7,6 @@ export const GLASSDOOR_MAX_POINTS = 15;
 export const POSTING_AGE_GHOST_THRESHOLD_DAYS = 60;
 export const POSTING_AGE_WARN_THRESHOLD_DAYS = 30;
 export const REPOST_GHOST_THRESHOLD = 2;
-export const HEADCOUNT_STALE_THRESHOLD_PCT = 1.0;
 
 export const MAX_JOBS_PER_SEARCH = 10;
 export const SCAN_TIMEOUT_MS = 60_000;

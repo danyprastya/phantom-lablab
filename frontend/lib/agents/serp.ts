@@ -1,8 +1,9 @@
-import { env } from "../../config/env.js";
-import { BRIGHT_DATA_API_URL } from "../../data/index.js";
-import type { SERPResult } from "../../types/index.js";
+import { getEnv } from "@/lib/config/env";
+import { BRIGHT_DATA_API_URL } from "@/lib/data";
+import type { SERPResult } from "@/lib/types";
 
 export async function fetchSerpResults(query: string, maxResults = 10): Promise<SERPResult[]> {
+  const env = getEnv();
   const searchQuery = `${query} jobs hiring now`;
   const encodedQuery = encodeURIComponent(searchQuery);
   const searchUrl = `https://www.google.com/search?q=${encodedQuery}&num=${maxResults}&hl=en`;

@@ -15,14 +15,10 @@ export type SignalWeight = z.infer<typeof SignalWeight>;
 export const AgentStatus = z.enum(["querying", "processing", "complete", "failed", "idle"]);
 export type AgentStatus = z.infer<typeof AgentStatus>;
 
-// ─── Request ─────────────────────────────────────────────────────
-
 export const ScanRequest = z.object({
   query: z.string().min(3).max(200),
 });
 export type ScanRequest = z.infer<typeof ScanRequest>;
-
-// ─── Signals ──────────────────────────────────────────────────────
 
 export const Signal = z.object({
   signal: z.string(),
@@ -91,8 +87,6 @@ export function sourcesWithData(merged: MergedJobSignals): number {
   return count;
 }
 
-// ─── Results ──────────────────────────────────────────────────────
-
 export const JobResult = z.object({
   job_title: z.string(),
   company: z.string(),
@@ -114,8 +108,6 @@ export const ScanResponse = z.object({
 });
 export type ScanResponse = z.infer<typeof ScanResponse>;
 
-// ─── Streaming ────────────────────────────────────────────────────
-
 export const StreamEvent = z.object({
   event_type: z.string(),
   agent_name: z.string().nullable().default(null),
@@ -124,8 +116,6 @@ export const StreamEvent = z.object({
   data: z.record(z.unknown()).nullable().default(null),
 });
 export type StreamEvent = z.infer<typeof StreamEvent>;
-
-// ─── Deterministic Result ─────────────────────────────────────────
 
 export interface DeterministicScoreResult {
   ghost_score: number;

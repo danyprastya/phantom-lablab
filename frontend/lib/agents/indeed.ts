@@ -1,8 +1,9 @@
-import { env } from "../../config/env.js";
-import { BRIGHT_DATA_API_URL } from "../../data/index.js";
-import type { IndeedSignals } from "../../types/index.js";
+import { getEnv } from "@/lib/config/env";
+import { BRIGHT_DATA_API_URL } from "@/lib/data";
+import type { IndeedSignals } from "@/lib/types";
 
 export async function fetchIndeedSignals(query: string, company?: string): Promise<IndeedSignals | null> {
+  const env = getEnv();
   const searchTerms = company ? `${query} ${company}` : query;
   const encodedTerms = encodeURIComponent(searchTerms);
   const indeedUrl = `https://www.indeed.com/jobs?q=${encodedTerms}&sort=date&limit=10`;
@@ -28,7 +29,7 @@ export async function fetchIndeedSignals(query: string, company?: string): Promi
     });
 
     if (!response.ok) {
-      console.error(`Indeed HTTP ${response.status}: ${await response.text().catch(() => "").then((t) => t.slice(0, 300))}`);
+      console.error(`Indeed HTTP ${response.status}`);
       return null;
     }
 

@@ -1,4 +1,4 @@
-name: Keep Alive (Cold Start Prevention)
+name: Keep Alive (Vercel Cold Start Prevention)
 
 on:
   schedule:
@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  ping-backend:
+  ping:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping backend health endpoint
+      - name: Ping health endpoint
         run: |
-          curl -s -o /dev/null -w "%{http_code}" "${{ secrets.BACKEND_URL }}/health" || true
+          curl -s -o /dev/null -w "%{http_code}" "${{ secrets.VERCEL_URL }}/api/health" || true

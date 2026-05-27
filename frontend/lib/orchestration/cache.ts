@@ -1,4 +1,4 @@
-import type { ScanResponse } from "../../types/index.js";
+import type { ScanResponse } from "@/lib/types";
 
 const cache = new Map<string, ScanResponse>();
 

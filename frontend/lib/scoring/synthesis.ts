@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { env } from "../../config/env.js";
-import { SYNTHESIS_SYSTEM_PROMPT, buildSynthesisPrompt } from "../../data/index.js";
-import type { MergedJobSignals, JobResult, Signal, Verdict, Confidence, DeterministicScoreResult } from "../../types/index.js";
+import { getEnv } from "@/lib/config/env";
+import { SYNTHESIS_SYSTEM_PROMPT, buildSynthesisPrompt } from "@/lib/data";
+import type { MergedJobSignals, JobResult, Signal, Verdict, Confidence, DeterministicScoreResult } from "@/lib/types";
 
 export async function synthesiseScore(
   merged: MergedJobSignals,
@@ -78,6 +78,7 @@ async function callLLM(userPrompt: string): Promise<{
   adjustment_reason?: string;
   summary?: string;
 } | null> {
+  const env = getEnv();
   if (!env.GOOGLE_API_KEY) {
     console.warn("GOOGLE_API_KEY not set — using fallback scoring");
     return null;
@@ -147,7 +148,7 @@ function generateFallbackSummary(
   if (merged.serp) sourcesCount++;
   if (merged.indeed && (merged.indeed.posting_age_days != null || merged.indeed.repost_count != null)) sourcesCount++;
   if (merged.linkedin && merged.linkedin.headcount_delta_pct != null) sourcesCount++;
-  if (merged.web_unlocker && (merged.web_unlocker.recent_news && merged.web_unlocker.recent_news.length > 0 || merged.web_unlocker.glassdoor_review_snippets && merged.web_unlocker.glassdoor_review_snippets.length > 0)) sourcesCount++;
+  if (merged.web_unlocker && ((merged.web_unlocker.recent_news && merged.web_unlocker.recent_news.length > 0) || (merged.web_unlocker.glassdoor_review_snippets && merged.web_unlocker.glassdoor_review_snippets.length > 0))) sourcesCount++;
 
   if (sourcesCount < 3) {
     parts.push(`Note: Only ${sourcesCount} of 4 data sources returned data, so confidence in this assessment is limited.`);

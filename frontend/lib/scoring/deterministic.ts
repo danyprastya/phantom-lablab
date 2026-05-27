@@ -7,7 +7,7 @@ import {
   POSTING_AGE_GHOST_THRESHOLD_DAYS,
   POSTING_AGE_WARN_THRESHOLD_DAYS,
   REPOST_GHOST_THRESHOLD,
-} from "../../data/index.js";
+} from "@/lib/data";
 import type {
   MergedJobSignals,
   Signal,
@@ -15,8 +15,8 @@ import type {
   Verdict,
   Confidence,
   DeterministicScoreResult,
-} from "../../types/index.js";
-import { sourcesWithData } from "../../types/index.js";
+} from "@/lib/types";
+import { sourcesWithData } from "@/lib/types";
 
 export function computeDeterministicScore(merged: MergedJobSignals): DeterministicScoreResult {
   let ghostScore = 0;
@@ -64,8 +64,6 @@ export function computeDeterministicScore(merged: MergedJobSignals): Determinist
     sources_checked: checked,
   };
 }
-
-// ─── Individual Signal Scoring ────────────────────────────────────
 
 function scorePostingAge(merged: MergedJobSignals): [number, Signal | null] {
   if (!merged.indeed || merged.indeed.posting_age_days == null) return [0, null];
@@ -161,8 +159,6 @@ function scoreGlassdoor(merged: MergedJobSignals): [number, Signal | null] {
 
   return [0, { signal: "Glassdoor signals", value: "No freeze or layoff signals", source: "Web Unlocker", weight: "Medium", direction: "Real", points: 0 }];
 }
-
-// ─── Verdict & Confidence ─────────────────────────────────────────
 
 function determineVerdict(score: number): Verdict {
   if (score >= 75) return "Real";

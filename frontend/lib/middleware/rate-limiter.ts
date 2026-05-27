@@ -2,12 +2,8 @@ const bucket = new Map<string, { count: number; resetAt: number }>();
 const MAX_REQUESTS = 5;
 const WINDOW_MS = 60_000;
 
-function getClientKey(ip: string): string {
-  return ip || "unknown";
-}
-
 export function checkRateLimit(ip: string): { allowed: boolean; message?: string } {
-  const key = getClientKey(ip);
+  const key = ip || "unknown";
   const now = Date.now();
   const entry = bucket.get(key);
 

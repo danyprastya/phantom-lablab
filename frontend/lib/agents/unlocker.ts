@@ -1,8 +1,15 @@
-import { env } from "../../config/env.js";
-import { BRIGHT_DATA_API_URL, FREEZE_KEYWORDS, LAYOFF_KEYWORDS, EXPANSION_KEYWORDS, FUNDING_KEYWORDS } from "../../data/index.js";
-import type { WebUnlockerSignals } from "../../types/index.js";
+import { getEnv } from "@/lib/config/env";
+import {
+  BRIGHT_DATA_API_URL,
+  FREEZE_KEYWORDS,
+  LAYOFF_KEYWORDS,
+  EXPANSION_KEYWORDS,
+  FUNDING_KEYWORDS,
+} from "@/lib/data";
+import type { WebUnlockerSignals } from "@/lib/types";
 
 export async function fetchUnlockerSignals(query: string, company?: string): Promise<WebUnlockerSignals | null> {
+  const env = getEnv();
   const searchTarget = company || query;
   const apiKey = env.BRIGHT_DATA_API_KEY;
   const zone = env.BRIGHT_DATA_SERP_ZONE;

@@ -1,13 +1,13 @@
 import { EventEmitter } from "node:events";
-import { fetchSerpResults, extractJobInfoFromSerp } from "../agents/serp.js";
-import { fetchIndeedSignals } from "../agents/indeed.js";
-import { fetchLinkedInSignals } from "../agents/linkedin.js";
-import { fetchUnlockerSignals } from "../agents/unlocker.js";
-import { computeDeterministicScore } from "../scoring/deterministic.js";
-import { synthesiseScore } from "../scoring/synthesis.js";
-import { getCached, setCached } from "./cache.js";
-import { MAX_JOBS_PER_SEARCH, SCAN_TIMEOUT_MS } from "../../data/index.js";
-import type { ScanRequest, StreamEvent, JobResult, MergedJobSignals, SERPResult, IndeedSignals, LinkedInSignals, WebUnlockerSignals } from "../../types/index.js";
+import { fetchSerpResults, extractJobInfoFromSerp } from "@/lib/agents/serp";
+import { fetchIndeedSignals } from "@/lib/agents/indeed";
+import { fetchLinkedInSignals } from "@/lib/agents/linkedin";
+import { fetchUnlockerSignals } from "@/lib/agents/unlocker";
+import { computeDeterministicScore } from "@/lib/scoring/deterministic";
+import { synthesiseScore } from "@/lib/scoring/synthesis";
+import { getCached, setCached } from "@/lib/orchestration/cache";
+import { MAX_JOBS_PER_SEARCH, SCAN_TIMEOUT_MS } from "@/lib/data";
+import type { ScanRequest, StreamEvent, JobResult, MergedJobSignals } from "@/lib/types";
 
 async function safeFetch<T>(fn: () => Promise<T | null>, name: string): Promise<T | null> {
   try {
@@ -36,7 +36,6 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
 
   const startTime = Date.now();
 
-  // ─── Phase 1: SERP Discovery ───────────────────────────────────
   yield {
     event_type: "agent_status",
     agent_name: "serp",
@@ -74,7 +73,6 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
     data: null,
   };
 
-  // ─── Phase 2: Parallel Enrichment ──────────────────────────────
   yield {
     event_type: "agent_status",
     agent_name: "indeed",
@@ -138,7 +136,6 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
     })();
   }
 
-  // ─── Phase 3: Stream results as they complete ──────────────────
   const deadline = Date.now() + SCAN_TIMEOUT_MS;
 
   while (pending > 0 && Date.now() < deadline) {
@@ -167,7 +164,6 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
     }
   }
 
-  // Update enrichment agent statuses
   yield {
     event_type: "agent_status",
     agent_name: "indeed",
@@ -190,7 +186,6 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
     data: null,
   };
 
-  // ─── Phase 4: Sort, cache, finalise ────────────────────────────
   scoredJobs.sort((a, b) => b.score - a.score);
 
   const response = {
