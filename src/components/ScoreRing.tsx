@@ -1,33 +1,30 @@
 "use client";
 
+import { useState, useEffect } from "react";
+
 interface ScoreRingProps {
-  score: number; // 0-100
-  size?: number; // px
+  score: number;
+  size?: number;
   strokeWidth?: number;
   className?: string;
 }
 
-/**
- * ScoreRing — Circular score visualization (0-100).
- *
- * Features:
- * - SVG-based for crisp rendering at all sizes
- * - Animated fill on mount via CSS animation
- * - Colour transitions: green (≥75), amber (40-74), red (<40)
- * - Score number displayed in center
- */
 export default function ScoreRing({
   score,
   size = 80,
   strokeWidth = 6,
   className = "",
 }: ScoreRingProps) {
+  const [animated, setAnimated] = useState(false);
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  // dashoffset = circumference × (1 - score/100)
   const dashoffset = circumference * (1 - score / 100);
 
-  // Determine colour based on score
+  useEffect(() => {
+    const timer = setTimeout(() => setAnimated(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
+
   const getColor = () => {
     if (score >= 75) return "var(--color-real)";
     if (score >= 40) return "var(--color-suspicious)";
@@ -62,7 +59,6 @@ export default function ScoreRing({
         viewBox={`0 0 ${size} ${size}`}
         className="transform -rotate-90"
       >
-        {/* Background track */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -70,8 +66,6 @@ export default function ScoreRing({
           className="score-ring-track"
           strokeWidth={strokeWidth}
         />
-
-        {/* Filled arc */}
         <circle
           cx={size / 2}
           cy={size / 2}
@@ -80,17 +74,13 @@ export default function ScoreRing({
           stroke={getColor()}
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
-          strokeDashoffset={dashoffset}
+          strokeDashoffset={animated ? dashoffset : circumference}
           style={{
             filter: `drop-shadow(0 0 6px ${getGlow()})`,
-            animationName: "scoreRingFill",
-            // @ts-ignore -- custom property for animation target
-            "--target-offset": dashoffset,
           }}
         />
       </svg>
 
-      {/* Center score text */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span
           className="font-bold leading-none"

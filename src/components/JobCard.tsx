@@ -222,7 +222,7 @@ export default function JobCard({
       </div>
 
       {/* View Original Link */}
-      {url && (
+      {url && /^https?:\/\//i.test(url) && (
         <div className="mt-3 pt-3 border-t border-[var(--border-subtle)]">
           <a
             href={url}

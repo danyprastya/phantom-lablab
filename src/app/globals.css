@@ -126,10 +126,6 @@ body {
   100% { background-position: 200% 0; }
 }
 
-@keyframes scoreRingFill {
-  from { stroke-dashoffset: 283; }
-}
-
 @keyframes float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-6px); }
@@ -265,7 +261,7 @@ body {
   stroke-linecap: round;
   transform: rotate(-90deg);
   transform-origin: center;
-  animation: scoreRingFill 1.2s ease-out forwards;
+  transition: stroke-dashoffset 1.2s ease-out;
 }
 
 /* ─── Loading dots ─────────────────────────────────────────────── */

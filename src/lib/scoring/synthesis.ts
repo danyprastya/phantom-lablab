@@ -3,6 +3,23 @@ import { getEnv } from "@/lib/config/env";
 import { SYNTHESIS_SYSTEM_PROMPT, buildSynthesisPrompt } from "@/lib/data";
 import type { MergedJobSignals, JobResult, Signal, Verdict, Confidence, DeterministicScoreResult } from "@/lib/types";
 
+let _llmClient: ReturnType<typeof createLLMClient> | null = null;
+
+function createLLMClient() {
+  const env = getEnv();
+  if (!env.GOOGLE_API_KEY) return null;
+  const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
+  return genAI.getGenerativeModel({
+    model: env.LLM_MODEL || "gemini-1.5-flash",
+    systemInstruction: SYNTHESIS_SYSTEM_PROMPT,
+  });
+}
+
+function getLLMClient() {
+  if (!_llmClient) _llmClient = createLLMClient();
+  return _llmClient;
+}
+
 export async function synthesiseScore(
   merged: MergedJobSignals,
   det: DeterministicScoreResult
@@ -78,19 +95,13 @@ async function callLLM(userPrompt: string): Promise<{
   adjustment_reason?: string;
   summary?: string;
 } | null> {
-  const env = getEnv();
-  if (!env.GOOGLE_API_KEY) {
+  const model = getLLMClient();
+  if (!model) {
     console.warn("GOOGLE_API_KEY not set — using fallback scoring");
     return null;
   }
 
   try {
-    const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction: SYNTHESIS_SYSTEM_PROMPT,
-    });
-
     const result = await model.generateContent({
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
       generationConfig: { temperature: 0.1, maxOutputTokens: 500 },

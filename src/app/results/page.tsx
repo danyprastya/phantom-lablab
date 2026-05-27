@@ -188,7 +188,6 @@ function ResultsContent() {
 
   const handleNewSearch = (newQuery: string) => {
     router.push(`/results?q=${encodeURIComponent(newQuery)}`);
-    startScan(newQuery);
   };
 
   // Count verdicts for summary stats

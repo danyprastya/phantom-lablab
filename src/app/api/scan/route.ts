@@ -13,7 +13,9 @@ function sanitiseQuery(query: string): string {
 }
 
 export async function POST(request: NextRequest) {
-  const ip = request.headers.get("x-forwarded-for") ?? request.headers.get("x-real-ip") ?? "unknown";
+  const forwarded = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  const ip = (forwarded?.split(",")[0]?.trim() || realIp || "unknown").substring(0, 45);
 
   const limit = checkRateLimit(ip);
   if (!limit.allowed) {
@@ -61,7 +63,7 @@ export async function POST(request: NextRequest) {
           event_type: "error",
           agent_name: null,
           status: null,
-          message: `An error occurred: ${err instanceof Error ? err.message : String(err)}`,
+          message: "An internal error occurred. Please try again later.",
           data: null,
         };
         const line = `event: error\ndata: ${JSON.stringify(errorEvent)}\n\n`;
@@ -69,6 +71,9 @@ export async function POST(request: NextRequest) {
       } finally {
         controller.close();
       }
+    },
+    cancel() {
+      console.log(`Client disconnected — scan for "${query}" aborted`);
     },
   });
 
