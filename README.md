@@ -7,9 +7,8 @@ Phantom is a hiring market intelligence agent that discovers job postings from p
 ### Prerequisites
 
 - Node.js 18+ and npm
-- Python 3.11+
 - Bright Data account with SERP API, Web Scraper, and Web Unlocker zones
-- OpenAI API key (for GPT-4o scoring synthesis)
+- Google Gemini API key
 
 ### Setup
 
@@ -18,20 +17,11 @@ Phantom is a hiring market intelligence agent that discovers job postings from p
 cp .env.example .env
 # Fill in your API keys in .env
 
-# 2. Frontend setup
-cd frontend
+# 2. Install and run
+cd src
 npm install
 npm run dev
-# Frontend runs at http://localhost:3000
-
-# 3. Backend setup (in a separate terminal)
-cd backend
-python -m venv venv
-venv\Scripts\activate   # Windows
-# source venv/bin/activate  # macOS/Linux
-pip install -r requirements.txt
-python main.py
-# Backend runs at http://localhost:8000
+# App runs at http://localhost:3000
 ```
 
 ### Demo Query
@@ -74,7 +64,7 @@ The LLM (GPT-4o) adjusts the final score by ±10 points max based on signal cohe
 See [docs/architecture.md](docs/architecture.md) for the full architecture document.
 
 ```
-User input → Next.js → FastAPI → 4 Bright Data sub-agents (parallel)
+User input → Next.js API route → 4 Bright Data sub-agents (parallel)
            → Merge signals → Deterministic scoring → LLM synthesis
            → Streaming SSE → Job cards ranked by score
 ```
@@ -91,30 +81,26 @@ User input → Next.js → FastAPI → 4 Bright Data sub-agents (parallel)
 
 ```
 phantom/
-├── frontend/                  # Next.js 14 (App Router)
+├── src/                       # Next.js app (frontend + API)
 │   ├── app/
 │   │   ├── page.tsx           # Search input page
 │   │   ├── results/page.tsx   # Results dashboard
-│   │   └── api/scan/route.ts  # Proxy to Python backend
-│   └── components/
-│       ├── SearchBar.tsx
-│       ├── JobCard.tsx
-│       ├── ScoreRing.tsx
-│       └── LoadingAgent.tsx
-├── backend/                   # Python FastAPI + LangChain
-│   ├── main.py                # FastAPI entry point
-│   ├── agent/
-│   │   ├── orchestrator.py    # Dispatches sub-agents
-│   │   ├── tools/
-│   │   │   ├── serp.py        # Bright Data SERP API
-│   │   │   ├── indeed.py      # Bright Data Indeed Scraper
-│   │   │   ├── linkedin.py    # Bright Data LinkedIn Scraper
-│   │   │   └── unlocker.py    # Bright Data Web Unlocker
-│   │   └── scoring/
-│   │       ├── deterministic.py   # Rule-based signal scoring
-│   │       └── llm_synthesis.py   # LLM scoring + explanation
-│   └── models/
-│       └── schemas.py         # Pydantic models
+│   │   └── api/
+│   │       ├── scan/route.ts  # SSE streaming scan endpoint
+│   │       └── health/route.ts
+│   ├── components/
+│   │   ├── SearchBar.tsx
+│   │   ├── JobCard.tsx
+│   │   ├── ScoreRing.tsx
+│   │   └── LoadingAgent.tsx
+│   └── lib/
+│       ├── agents/            # 4 Bright Data sub-agent tools
+│       ├── scoring/           # Deterministic + LLM synthesis
+│       ├── orchestration/     # Pipeline + cache
+│       ├── types/             # Zod schemas
+│       ├── data/              # Scoring weights, keywords, prompts
+│       ├── config/            # Env loading
+│       └── middleware/        # Rate limiter
 └── docs/
     └── architecture.md
 ```

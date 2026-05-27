@@ -8,15 +8,11 @@ node_modules/
 .env.production
 .env.*.local
 
-# Frontend (Next.js)
-frontend/.next/
-frontend/out/
-frontend/build/
-frontend/next-env.d.ts
-
-# Server (TypeScript)
-server/dist/
-server/node_modules/
+# Next.js
+src/.next/
+src/out/
+src/build/
+src/next-env.d.ts
 
 # IDE
 .vscode/
