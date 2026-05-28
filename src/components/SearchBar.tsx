@@ -1,75 +1,43 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
   isLoading?: boolean;
 }
 
-const PLACEHOLDER_QUERIES = [
-  "software engineer fintech remote",
-  "data scientist new york",
-  "product manager healthcare berlin",
-  "frontend developer web3 san francisco",
-  "devops engineer cloud london",
-  "machine learning engineer biotech boston",
-];
-
 /**
- * SearchBar — Primary search input for Phantom.
+ * SearchBar — Primary search input for Verity.
  *
- * Features:
- * - Single text field for role + location (plain English)
- * - Animated cycling placeholder text showing example queries
- * - Submit button with loading state
- * - Keyboard submit (Enter key)
+ * Two visual states driven by `isLoading`:
+ *   Default  — label + text input + suggestion pills + search button
+ *   Scanning — label + 8-spoke spinner + animated "Finding....." text (pills + button hidden)
+ *
+ * Transitions:
+ *   Pills + button:  max-height 0 + opacity 0, 200ms ease-in
+ *   Input text:      opacity 0, 150ms
+ *   Spinner/Finding: opacity 1, 200ms, delayed 150ms after pills disappear
+ *   Card height:     max-height shrinks via the pills container collapse, 250ms ease-in-out
+ *   Dots:            animate 1→2→3→4→5→1, 400ms per step while loading
  */
 export default function SearchBar({ onSearch, isLoading = false }: SearchBarProps) {
   const [query, setQuery] = useState("");
-  const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [displayedPlaceholder, setDisplayedPlaceholder] = useState("");
-  const [isTyping, setIsTyping] = useState(true);
+  const [dotCount, setDotCount] = useState(5);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Animate placeholder text — typing effect
+  // Animated dot counter: cycles 1→5 while loading
   useEffect(() => {
-    const target = PLACEHOLDER_QUERIES[placeholderIndex];
-    let charIndex = 0;
-    let timeout: NodeJS.Timeout;
-
-    if (isTyping) {
-      // Type forward
-      const typeForward = () => {
-        if (charIndex <= target.length) {
-          setDisplayedPlaceholder(target.substring(0, charIndex));
-          charIndex++;
-          timeout = setTimeout(typeForward, 50 + Math.random() * 30);
-        } else {
-          // Pause at end, then start erasing
-          timeout = setTimeout(() => setIsTyping(false), 2000);
-        }
-      };
-      typeForward();
-    } else {
-      // Erase backward
-      let eraseIndex = target.length;
-      const typeBackward = () => {
-        if (eraseIndex >= 0) {
-          setDisplayedPlaceholder(target.substring(0, eraseIndex));
-          eraseIndex--;
-          timeout = setTimeout(typeBackward, 25);
-        } else {
-          // Move to next placeholder
-          setPlaceholderIndex((prev) => (prev + 1) % PLACEHOLDER_QUERIES.length);
-          setIsTyping(true);
-        }
-      };
-      typeBackward();
+    if (!isLoading) {
+      setDotCount(5);
+      return;
     }
-
-    return () => clearTimeout(timeout);
-  }, [placeholderIndex, isTyping]);
+    setDotCount(1);
+    const interval = setInterval(() => {
+      setDotCount((prev) => (prev >= 5 ? 1 : prev + 1));
+    }, 400);
+    return () => clearInterval(interval);
+  }, [isLoading]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,80 +53,133 @@ export default function SearchBar({ onSearch, isLoading = false }: SearchBarProp
       className="w-full max-w-2xl mx-auto"
       id="search-form"
     >
-      <div className="relative group">
-        {/* Glow effect behind the input */}
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-[var(--accent-primary)] via-purple-500 to-[var(--accent-secondary)] rounded-2xl opacity-0 group-hover:opacity-20 group-focus-within:opacity-30 blur-lg transition-all duration-500" />
+      <div className="bg-white border border-[#e6f4f0] rounded-xl overflow-hidden text-left emerald-glow-card">
 
-        <div className="relative flex items-center bg-[var(--bg-card)] border border-[var(--border-medium)] rounded-2xl overflow-hidden transition-all duration-300 group-focus-within:border-[var(--accent-primary)] group-focus-within:shadow-[0_0_30px_var(--accent-glow)]">
-          {/* Search icon */}
-          <div className="pl-5 pr-2 text-[var(--text-muted)]">
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <path d="M21 21l-4.35-4.35" />
-            </svg>
-          </div>
+        {/* ── Top label bar — always visible ── */}
+        <div className="bg-[#F0FDF4] border-b border-[#e6f4f0] py-3 px-5">
+          <label
+            htmlFor="search-input"
+            className="text-[11px] text-[#009966] font-bold uppercase tracking-wider block"
+          >
+            Find your job now
+          </label>
+        </div>
 
+        {/* ── Input row — switches between text input and Finding state ── */}
+        <div className="relative px-5 pt-5 pb-3" style={{ minHeight: "52px" }}>
+
+          {/* Normal text input — fades out when loading */}
           <input
             ref={inputRef}
             id="search-input"
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder={displayedPlaceholder}
+            onFocus={() => {}}
+            onBlur={() => {}}
+            placeholder="Search your dream job"
             disabled={isLoading}
-            className="flex-1 py-4 px-2 bg-transparent text-[var(--text-primary)] placeholder-[var(--text-muted)] text-base outline-none disabled:opacity-50 font-[var(--font-sans)]"
+            className="w-full bg-transparent text-[#161513] placeholder-slate-400 text-lg font-semibold outline-none transition-opacity duration-150"
+            style={{ opacity: isLoading ? 0 : 1, pointerEvents: isLoading ? "none" : "auto" }}
             autoComplete="off"
             spellCheck={false}
           />
 
-          <button
-            type="submit"
-            id="search-button"
-            disabled={isLoading || query.trim().length < 3}
-            className="mr-2 px-6 py-2.5 bg-[var(--accent-primary)] hover:bg-[#6b4ce6] text-white font-medium rounded-xl transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed hover:shadow-[0_0_20px_var(--accent-glow)] active:scale-95 text-sm"
+          {/* Finding row — fades in when loading, overlaid on top of input */}
+          <div
+            className="absolute inset-x-5 flex items-center gap-3 transition-opacity duration-200"
+            style={{
+              top: "20px",
+              opacity: isLoading ? 1 : 0,
+              pointerEvents: isLoading ? "auto" : "none",
+              transitionDelay: isLoading ? "150ms" : "0ms",
+            }}
           >
-            {isLoading ? (
-              <span className="flex items-center gap-2">
-                <svg
-                  className="animate-spin h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    className="opacity-25"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                    className="opacity-75"
-                  />
-                </svg>
-                Scanning
+            {/* 8-spoke radial spinner */}
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              className="animate-spin shrink-0"
+            >
+              <g stroke="#9ca3af" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="12" y1="2" x2="12" y2="6" />
+                <line x1="12" y1="18" x2="12" y2="22" />
+                <line x1="4.22" y1="4.22" x2="7.05" y2="7.05" />
+                <line x1="16.95" y1="16.95" x2="19.78" y2="19.78" />
+                <line x1="2" y1="12" x2="6" y2="12" />
+                <line x1="18" y1="12" x2="22" y2="12" />
+                <line x1="4.22" y1="19.78" x2="7.05" y2="16.95" />
+                <line x1="16.95" y1="7.05" x2="19.78" y2="4.22" />
+              </g>
+            </svg>
+            <span className="text-lg font-semibold text-slate-400">
+              Finding{".".repeat(dotCount)}
+            </span>
+          </div>
+        </div>
+
+        {/* ── Suggestions + button — collapse on loading ── */}
+        <div
+          className="overflow-hidden"
+          style={{
+            maxHeight: isLoading ? "0px" : "120px",
+            opacity: isLoading ? 0 : 1,
+            transition: isLoading
+              ? "max-height 250ms ease-in, opacity 200ms ease-in"
+              : "max-height 250ms ease-out, opacity 250ms ease-out",
+          }}
+        >
+          <div className="flex items-end justify-between gap-4 px-5 pb-5 pt-1">
+            <div className="flex-1">
+              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider block mb-2.5">
+                Suggestion
               </span>
-            ) : (
-              "Scan Jobs"
-            )}
-          </button>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  "Software Engineer · Remote",
+                  "Product Designer · Jakarta",
+                  "Data Analyst · Fintech",
+                ].map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onClick={() => {
+                      if (!isLoading) setQuery(suggestion);
+                    }}
+                    className="px-3.5 py-1.5 bg-white border border-slate-200 hover:border-[#009966] hover:text-[#009966] rounded-full text-xs text-slate-700 font-semibold transition-all duration-200 cursor-pointer"
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Search button */}
+            <button
+              type="submit"
+              id="search-button"
+              disabled={isLoading || query.trim().length < 3}
+              className="shrink-0 w-11 h-11 bg-[#009966] hover:bg-[#008055] text-white flex items-center justify-center rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-md cursor-pointer"
+              aria-label="Search"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
-
-      <p className="mt-3 text-center text-xs text-[var(--text-muted)]">
-        Enter a job role and location — Phantom will find and verify postings across 4 data sources
-      </p>
     </form>
   );
 }

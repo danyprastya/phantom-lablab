@@ -98,6 +98,7 @@ export const JobResult = z.object({
   signals: z.array(Signal).default([]),
   summary: z.string().default(""),
   sources_checked: z.number().int().min(0).max(4).default(0),
+  salary: z.string().optional(),
 });
 export type JobResult = z.infer<typeof JobResult>;
 

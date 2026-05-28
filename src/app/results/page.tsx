@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import SearchBar from "@/components/SearchBar";
 import LoadingAgent from "@/components/LoadingAgent";
 import JobCard from "@/components/JobCard";
+import JobDetailDrawer from "@/components/JobDetailDrawer";
 
 interface Signal {
   signal: string;
@@ -54,6 +55,8 @@ function ResultsContent() {
   const [jobResults, setJobResults] = useState<JobResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [scanComplete, setScanComplete] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<JobResult | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const startScan = useCallback(
     async (searchQuery: string) => {
@@ -200,8 +203,8 @@ function ResultsContent() {
   return (
     <main className="min-h-screen bg-[var(--bg-primary)] relative">
       {/* Background */}
-      <div className="fixed inset-0 bg-grid opacity-50" />
-      <div className="fixed inset-0 bg-radial-glow" />
+      <div className="fixed inset-0 bg-grid opacity-50 pointer-events-none" />
+      <div className="fixed inset-0 bg-radial-glow pointer-events-none" />
 
       <div className="relative z-10">
         {/* Header */}
@@ -299,6 +302,10 @@ function ResultsContent() {
                   key={`${job.company}-${job.job_title}-${index}`}
                   {...job}
                   index={index}
+                  onClick={() => {
+                    setSelectedJob(job);
+                    setIsDrawerOpen(true);
+                  }}
                 />
               ))}
             </div>
@@ -319,6 +326,13 @@ function ResultsContent() {
           )}
         </div>
       </div>
+
+      {/* Dynamic Job Detail Drawer overlay */}
+      <JobDetailDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        job={selectedJob}
+      />
     </main>
   );
 }

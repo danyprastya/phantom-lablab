@@ -7,6 +7,7 @@ interface ScoreRingProps {
   size?: number;
   strokeWidth?: number;
   className?: string;
+  showText?: boolean;
 }
 
 export default function ScoreRing({
@@ -14,6 +15,7 @@ export default function ScoreRing({
   size = 80,
   strokeWidth = 6,
   className = "",
+  showText = true,
 }: ScoreRingProps) {
   const [animated, setAnimated] = useState(false);
   const radius = (size - strokeWidth) / 2;
@@ -31,17 +33,14 @@ export default function ScoreRing({
     return "var(--color-ghost)";
   };
 
-  const getGlow = () => {
-    if (score >= 75) return "var(--color-real-glow)";
-    if (score >= 40) return "var(--color-suspicious-glow)";
-    return "var(--color-ghost-glow)";
-  };
-
   const getLabel = () => {
     if (score >= 75) return "Real";
     if (score >= 40) return "Suspicious";
     return "Ghost";
   };
+
+  // Only show the text if size is larger than 50 and showText is true
+  const shouldShowText = showText && size > 50;
 
   return (
     <div
@@ -75,29 +74,28 @@ export default function ScoreRing({
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={animated ? dashoffset : circumference}
-          style={{
-            filter: `drop-shadow(0 0 6px ${getGlow()})`,
-          }}
         />
       </svg>
 
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span
-          className="font-bold leading-none"
-          style={{
-            fontSize: size * 0.28,
-            color: getColor(),
-          }}
-        >
-          {score}
-        </span>
-        <span
-          className="text-[var(--text-muted)] leading-none mt-0.5"
-          style={{ fontSize: size * 0.11 }}
-        >
-          /100
-        </span>
-      </div>
+      {shouldShowText && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span
+            className="font-bold leading-none"
+            style={{
+              fontSize: size * 0.28,
+              color: getColor(),
+            }}
+          >
+            {score}
+          </span>
+          <span
+            className="text-(--text-muted) leading-none mt-0.5"
+            style={{ fontSize: size * 0.11 }}
+          >
+            /100
+          </span>
+        </div>
+      )}
     </div>
   );
 }

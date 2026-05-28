@@ -2,7 +2,7 @@ import { getEnv } from "@/lib/config/env";
 import { BRIGHT_DATA_API_URL } from "@/lib/data";
 import type { LinkedInSignals } from "@/lib/types";
 
-export async function fetchLinkedInSignals(query: string, company?: string): Promise<LinkedInSignals | null> {
+export async function fetchLinkedInSignals(query: string, company?: string): Promise<LinkedInSignals> {
   const env = getEnv();
   const searchTarget = company || query;
   const linkedinUrl = `https://www.linkedin.com/company/${slugify(searchTarget)}/about/`;
@@ -29,7 +29,12 @@ export async function fetchLinkedInSignals(query: string, company?: string): Pro
 
     if (!response.ok) {
       console.error(`LinkedIn HTTP ${response.status}`);
-      return null;
+      return {
+        headcount: null,
+        headcount_delta_pct: null,
+        recent_posts: null,
+        source: "LinkedIn Scraper",
+      };
     }
 
     let content: string;
@@ -51,7 +56,12 @@ export async function fetchLinkedInSignals(query: string, company?: string): Pro
     return signals;
   } catch (err) {
     console.error(`LinkedIn error: ${err}`);
-    return null;
+    return {
+      headcount: null,
+      headcount_delta_pct: null,
+      recent_posts: null,
+      source: "LinkedIn Scraper",
+    };
   }
 }
 

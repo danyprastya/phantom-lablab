@@ -1,45 +1,39 @@
 @import "tailwindcss";
 
-/* ─── Phantom Design System ────────────────────────────────────── */
+/* ─── Verity Design System ────────────────────────────────────── */
 
 :root {
-  /* Core palette — dark mode first */
-  --bg-primary: #0a0b0f;
-  --bg-secondary: #12131a;
-  --bg-card: #1a1b25;
-  --bg-card-hover: #222330;
-  --bg-elevated: #252637;
+  /* Core palette — light mode */
+  --bg-primary: #ffffff;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-card-hover: #ffffff;
+  --bg-elevated: #f1f5f9;
 
   /* Text */
-  --text-primary: #f0f0f5;
-  --text-secondary: #9395a5;
-  --text-muted: #5d5f72;
+  --text-primary: #161513;
+  --text-secondary: #475569;
+  --text-muted: #8f9ca2;
 
-  /* Accent — electric indigo/violet */
-  --accent-primary: #7c5cff;
-  --accent-secondary: #a78bfa;
-  --accent-glow: rgba(124, 92, 255, 0.15);
-  --accent-glow-strong: rgba(124, 92, 255, 0.3);
+  /* Accent — Green #009966 */
+  --accent-primary: #009966;
+  --accent-secondary: #00b87c;
 
   /* Verdict colours */
-  --color-real: #34d399;
-  --color-real-bg: rgba(52, 211, 153, 0.1);
-  --color-real-glow: rgba(52, 211, 153, 0.25);
-  --color-suspicious: #fbbf24;
-  --color-suspicious-bg: rgba(251, 191, 36, 0.1);
-  --color-suspicious-glow: rgba(251, 191, 36, 0.25);
-  --color-ghost: #f87171;
-  --color-ghost-bg: rgba(248, 113, 113, 0.1);
-  --color-ghost-glow: rgba(248, 113, 113, 0.25);
+  --color-real: #009966;
+  --color-real-bg: #e6f7f0;
+  --color-suspicious: #d97706;
+  --color-suspicious-bg: #fef3c7;
+  --color-ghost: #dc2626;
+  --color-ghost-bg: #fee2e2;
 
   /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.06);
-  --border-medium: rgba(255, 255, 255, 0.1);
-  --border-accent: rgba(124, 92, 255, 0.3);
+  --border-subtle: #e6f4f0;
+  --border-medium: #cbd5e1;
+  --border-accent: #009966;
 
   /* Shadows */
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3);
-  --shadow-glow: 0 0 40px var(--accent-glow);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.02);
 
   /* Background & foreground overrides for Tailwind */
   --background: var(--bg-primary);
@@ -53,18 +47,24 @@
   --font-mono: var(--font-geist-mono);
 }
 
-/* ─── Base Styles ──────────────────────────────────────────────── */
-
-* {
-  box-sizing: border-box;
+/* Ensure the page always uses our light-mode colors, ignoring any dark mode system overrides */
+html, body {
+  background-color: #ffffff !important;
+  color: #161513 !important;
 }
 
 body {
-  background: var(--bg-primary);
-  color: var(--text-primary);
   font-family: var(--font-sans, "Inter", system-ui, -apple-system, sans-serif);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #ffffff;
+    --background: #ffffff;
+    --foreground: #161513;
+  }
 }
 
 /* ─── Scrollbar ────────────────────────────────────────────────── */
@@ -73,10 +73,10 @@ body {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-secondary);
+  background: var(--bg-primary);
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-elevated);
+  background: var(--border-subtle);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -112,25 +112,6 @@ body {
   }
 }
 
-@keyframes pulse-glow {
-  0%, 100% {
-    box-shadow: 0 0 20px var(--accent-glow);
-  }
-  50% {
-    box-shadow: 0 0 40px var(--accent-glow-strong);
-  }
-}
-
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-
 @keyframes typing-dot {
   0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
   40% { opacity: 1; transform: scale(1); }
@@ -155,25 +136,6 @@ body {
   animation: slideInRight 0.5s ease-out forwards;
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-.animate-shimmer {
-  background: linear-gradient(
-    90deg,
-    var(--bg-card) 25%,
-    var(--bg-elevated) 50%,
-    var(--bg-card) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
-}
-
-.animate-float {
-  animation: float 3s ease-in-out infinite;
-}
-
 /* Stagger children animations */
 .stagger-children > * {
   opacity: 0;
@@ -193,18 +155,16 @@ body {
 /* ─── Glassmorphism Card ───────────────────────────────────────── */
 
 .glass-card {
-  background: rgba(26, 27, 37, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: #ffffff;
   border: 1px solid var(--border-subtle);
-  border-radius: 16px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-card);
   transition: all 0.3s ease;
 }
 
 .glass-card:hover {
-  background: rgba(34, 35, 48, 0.8);
-  border-color: var(--border-medium);
-  box-shadow: var(--shadow-card);
+  border-color: rgba(0, 153, 102, 0.2);
+  box-shadow: 0 8px 30px rgba(0, 153, 102, 0.03);
 }
 
 /* ─── Verdict Badge Styles ─────────────────────────────────────── */
@@ -212,39 +172,16 @@ body {
 .verdict-real {
   background: var(--color-real-bg);
   color: var(--color-real);
-  border: 1px solid rgba(52, 211, 153, 0.2);
-  text-shadow: 0 0 10px var(--color-real-glow);
 }
 
 .verdict-suspicious {
   background: var(--color-suspicious-bg);
   color: var(--color-suspicious);
-  border: 1px solid rgba(251, 191, 36, 0.2);
-  text-shadow: 0 0 10px var(--color-suspicious-glow);
 }
 
 .verdict-ghost {
   background: var(--color-ghost-bg);
   color: var(--color-ghost);
-  border: 1px solid rgba(248, 113, 113, 0.2);
-  text-shadow: 0 0 10px var(--color-ghost-glow);
-}
-
-/* ─── Background Effects ───────────────────────────────────────── */
-
-.bg-grid {
-  background-image:
-    linear-gradient(rgba(124, 92, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(124, 92, 255, 0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-}
-
-.bg-radial-glow {
-  background: radial-gradient(
-    ellipse 80% 60% at 50% 0%,
-    rgba(124, 92, 255, 0.08) 0%,
-    transparent 60%
-  );
 }
 
 /* ─── Score Ring ────────────────────────────────────────────────── */
@@ -252,12 +189,10 @@ body {
 .score-ring-track {
   fill: none;
   stroke: var(--bg-elevated);
-  stroke-width: 6;
 }
 
 .score-ring-fill {
   fill: none;
-  stroke-width: 6;
   stroke-linecap: round;
   transform: rotate(-90deg);
   transform-origin: center;
@@ -271,3 +206,30 @@ body {
 }
 .loading-dot:nth-child(2) { animation-delay: 0.2s; }
 .loading-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ─── Cursor Blink ──────────────────────────────────────────────── */
+
+@keyframes cursor-blink-anim {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.cursor-blink {
+  animation: cursor-blink-anim 1s step-start infinite;
+}
+
+/* ─── Emerald Glow Pulse ────────────────────────────────────────── */
+
+@keyframes emerald-glow-pulse {
+  0%, 100% {
+    box-shadow: 0 4px 20px rgba(0, 212, 146, 0.15), 0 1px 3px rgba(0, 0, 0, 0.01);
+  }
+  50% {
+    box-shadow: 0 8px 30px rgba(0, 212, 146, 0.28), 0 2px 6px rgba(0, 212, 146, 0.08);
+  }
+}
+
+.emerald-glow-card {
+  animation: emerald-glow-pulse 6s ease-in-out infinite;
+}
+

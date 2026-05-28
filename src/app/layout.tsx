@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-geist-sans",
   subsets: ["latin"],
   display: "swap",
@@ -15,9 +15,9 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Phantom — Hiring Intelligence Agent",
+  title: "Verity — Hiring Intelligence Agent",
   description:
-    "Discover real jobs, expose ghost postings. Phantom autonomously searches, verifies, and scores job listings across 4 live data sources.",
+    "Discover real jobs, expose ghost postings. Verity autonomously searches, verifies, and scores job listings across 4 live data sources.",
   keywords: [
     "ghost jobs",
     "hiring intelligence",
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
     "hiring reality score",
   ],
   openGraph: {
-    title: "Phantom — Hiring Intelligence Agent",
+    title: "Verity — Hiring Intelligence Agent",
     description:
       "The only tool that finds jobs, verifies them across 4 live data sources, and returns cited, scored intelligence.",
     type: "website",
@@ -41,9 +41,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${plusJakartaSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--bg-primary)] text-[var(--text-primary)]">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}
       </body>
     </html>
