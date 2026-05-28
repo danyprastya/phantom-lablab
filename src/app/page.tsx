@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import SearchBar from "@/components/SearchBar";
 import JobCard from "@/components/JobCard";
 import JobDetailDrawer from "@/components/JobDetailDrawer";
@@ -277,20 +278,20 @@ export default function HomePage() {
             />
           </a>
           <div className="flex items-center gap-8">
-            <a
-              href="#how-it-works"
+            <Link
+              href="/how-it-works"
               className="text-[13px] font-bold text-[#161513] hover:opacity-80 transition-opacity"
             >
               How it Works
-            </a>
-            <a
-              href="#about"
+            </Link>
+            <Link
+              href="/about"
               className="text-[13px] font-bold text-[#161513] hover:opacity-80 transition-opacity"
             >
               About
-            </a>
+            </Link>
             <a
-              href="https://github.com"
+              href="https://github.com/danyprastya/phantom-lablab"
               target="_blank"
               rel="noopener noreferrer"
               className="px-4.5 py-2 bg-[#009966] hover:bg-[#008055] text-white text-[13px] font-bold rounded-lg transition-all duration-200"

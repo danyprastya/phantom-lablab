@@ -25,6 +25,17 @@ export const metadata: Metadata = {
     "ghost job detector",
     "hiring reality score",
   ],
+  icons: {
+    icon: [
+      { url: "/favicons/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicons/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+      { url: "/favicons/favicon.ico" },
+    ],
+    apple: [
+      { url: "/favicons/apple-touch-icon.png", sizes: "180x180" },
+    ],
+  },
+  manifest: "/favicons/site.webmanifest",
   openGraph: {
     title: "Verity — Hiring Intelligence Agent",
     description:
