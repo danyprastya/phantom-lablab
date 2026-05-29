@@ -6,28 +6,7 @@ import SearchBar from "@/components/SearchBar";
 import LoadingAgent from "@/components/LoadingAgent";
 import JobCard from "@/components/JobCard";
 import JobDetailDrawer from "@/components/JobDetailDrawer";
-
-interface Signal {
-  signal: string;
-  value: string;
-  source: string;
-  weight: string;
-  direction: string;
-  points: number;
-}
-
-interface JobResult {
-  job_title: string;
-  company: string;
-  location: string;
-  url: string;
-  score: number;
-  verdict: "Real" | "Suspicious" | "Ghost";
-  confidence: "High" | "Medium" | "Low";
-  signals: Signal[];
-  summary: string;
-  sources_checked: number;
-}
+import type { Signal, JobResult } from "@/lib/types";
 
 interface AgentStep {
   agent_name: string;

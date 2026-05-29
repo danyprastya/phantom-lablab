@@ -1,0 +1,176 @@
+/**
+ * Query Expander — Uses Gemini LLM to expand natural language queries into
+ * multiple optimised search variations.
+ *
+ * Instead of sending the user's exact words to Google, we:
+ * 1. Ask Gemini to extract intent (role, seniority, industry, location)
+ * 2. Generate 3 diverse search query variations with synonyms
+ * 3. Run all variations through SERP in parallel
+ * 4. Deduplicate results by URL
+ *
+ * Fallback: if Gemini is unavailable, uses a deterministic synonym expansion.
+ *
+ * @module agents/query-expander
+ */
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getEnv } from "@/lib/config/env";
+
+export interface ExpandedQueries {
+  /** The original user query */
+  original: string;
+  /** 2-3 search query variations optimised for Google job search */
+  variations: string[];
+}
+
+const EXPANSION_PROMPT = `You are a job search query optimizer. Given a natural language job search query, generate 3 diverse Google search variations that will find relevant job postings.
+
+RULES:
+1. Each variation should use different synonyms and phrasings
+2. Always include "jobs" or "hiring" or "careers" in each variation
+3. Expand abbreviations (e.g., "SWE" → "Software Engineer", "ML" → "Machine Learning")
+4. If the query mentions a location, keep it. If not, don't add one.
+5. If the query mentions an industry/domain, include related terms
+6. Keep each variation under 10 words
+
+Respond ONLY with a JSON array of 3 strings. No markdown, no explanation.
+
+Example input: "frontend dev react startup"
+Example output: ["frontend developer react startup jobs", "react engineer hiring startup", "front-end web developer react careers"]`;
+
+/**
+ * Expands a user query into multiple search variations using Gemini.
+ * Falls back to deterministic expansion if LLM is unavailable.
+ */
+export async function expandQuery(query: string): Promise<ExpandedQueries> {
+  const trimmed = query.trim();
+
+  try {
+    const env = getEnv();
+    if (!env.GOOGLE_API_KEY) {
+      console.log("Query expander: no API key, using deterministic fallback");
+      return { original: trimmed, variations: deterministicExpand(trimmed) };
+    }
+
+    const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
+    const model = genAI.getGenerativeModel({
+      model: env.LLM_MODEL || "gemini-1.5-flash",
+    });
+
+    const result = await model.generateContent({
+      contents: [{ role: "user", parts: [{ text: `${EXPANSION_PROMPT}\n\nInput: "${trimmed}"` }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 200,
+      },
+    });
+
+    const text = result.response.text().trim();
+
+    // Parse JSON array from response (strip markdown fencing if present)
+    const cleaned = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleaned) as string[];
+
+    if (Array.isArray(parsed) && parsed.length >= 2 && parsed.every((s) => typeof s === "string")) {
+      console.log(`Query expander: "${trimmed}" → ${parsed.length} variations`);
+      return { original: trimmed, variations: parsed.slice(0, 3) };
+    }
+
+    throw new Error("Invalid LLM response format");
+  } catch (err) {
+    console.warn(`Query expander LLM failed, using fallback: ${err}`);
+    return { original: trimmed, variations: deterministicExpand(trimmed) };
+  }
+}
+
+// ─── Synonym Map ──────────────────────────────────────────────────────────
+const SYNONYMS: Record<string, string[]> = {
+  // Roles
+  "software engineer": ["software developer", "SWE", "programmer"],
+  "software developer": ["software engineer", "developer", "coder"],
+  "frontend": ["front-end", "front end", "UI developer"],
+  "backend": ["back-end", "back end", "server-side"],
+  "fullstack": ["full-stack", "full stack"],
+  "full-stack": ["fullstack", "full stack"],
+  "devops": ["DevOps", "site reliability", "SRE", "platform engineer"],
+  "data scientist": ["data science", "ML engineer", "machine learning"],
+  "data engineer": ["data platform", "data infrastructure", "ETL engineer"],
+  "product manager": ["PM", "product lead", "product owner"],
+  "designer": ["UX designer", "UI designer", "product designer"],
+  "qa": ["quality assurance", "test engineer", "SDET"],
+  "mobile": ["iOS", "Android", "mobile developer"],
+  // Seniority
+  "senior": ["sr", "lead", "staff"],
+  "junior": ["jr", "entry level", "associate"],
+  "lead": ["principal", "staff", "senior"],
+  "intern": ["internship", "co-op", "trainee"],
+  // Industry
+  "fintech": ["financial technology", "payments", "banking tech"],
+  "healthtech": ["health tech", "healthcare technology", "medtech"],
+  "edtech": ["education technology", "ed-tech", "learning platform"],
+  "ai": ["artificial intelligence", "machine learning", "deep learning"],
+  "crypto": ["blockchain", "web3", "cryptocurrency"],
+  "saas": ["SaaS", "cloud software", "B2B software"],
+  "ecommerce": ["e-commerce", "online retail", "marketplace"],
+  // Work style
+  "remote": ["work from home", "distributed", "WFH"],
+  "hybrid": ["hybrid remote", "flexible location"],
+  "onsite": ["on-site", "in-office", "in office"],
+};
+
+/**
+ * Deterministic query expansion using a synonym dictionary.
+ * Used as fallback when Gemini is unavailable.
+ */
+export function deterministicExpand(query: string): string[] {
+  const lower = query.toLowerCase();
+  const words = lower.split(/\s+/);
+  const variations: string[] = [];
+
+  // Variation 1: Original + "jobs hiring now"
+  variations.push(`${query} jobs hiring now`);
+
+  // Variation 2: Replace first matching synonym
+  let expanded = lower;
+  for (const [term, syns] of Object.entries(SYNONYMS)) {
+    if (lower.includes(term)) {
+      expanded = lower.replace(term, syns[0]);
+      break;
+    }
+  }
+  if (expanded !== lower) {
+    variations.push(`${expanded} jobs`);
+  }
+
+  // Variation 3: Try bigram synonym matches, otherwise use word-level expansion
+  let secondExpansion = lower;
+  let found = false;
+  // Try 2-word combos first
+  for (let i = 0; i < words.length - 1; i++) {
+    const bigram = `${words[i]} ${words[i + 1]}`;
+    if (SYNONYMS[bigram]) {
+      secondExpansion = lower.replace(bigram, SYNONYMS[bigram][1] || SYNONYMS[bigram][0]);
+      found = true;
+      break;
+    }
+  }
+  // Then single words
+  if (!found) {
+    for (const word of words) {
+      if (SYNONYMS[word] && lower.replace(word, SYNONYMS[word][0]) !== expanded) {
+        secondExpansion = lower.replace(word, SYNONYMS[word][0]);
+        found = true;
+        break;
+      }
+    }
+  }
+  if (found) {
+    variations.push(`${secondExpansion} careers`);
+  }
+
+  // Always ensure at least 2 variations
+  if (variations.length < 2) {
+    variations.push(`${query} careers openings`);
+  }
+
+  return variations.slice(0, 3);
+}

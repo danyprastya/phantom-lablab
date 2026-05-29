@@ -18,7 +18,6 @@ cp .env.example .env
 # Fill in your API keys in .env
 
 # 2. Install and run
-cd src
 npm install
 npm run dev
 # App runs at http://localhost:3000
@@ -45,7 +44,7 @@ Every job posting receives a **Hiring Reality Score** (0–100) computed from 5 
 **Raw ghost score** = sum of triggered signal weights (max 100).
 **Hiring Reality Score** = 100 − ghost score.
 
-The LLM (GPT-4o) adjusts the final score by ±10 points max based on signal coherence and generates a plain-English explanation. The LLM never generates facts — it only synthesises signals sourced from Bright Data.
+The LLM (Google Gemini) adjusts the final score by ±10 points max based on signal coherence and generates a plain-English explanation. The LLM never generates facts — it only synthesises signals sourced from Bright Data.
 
 ### Verdicts
 
@@ -81,28 +80,33 @@ User input → Next.js API route → 4 Bright Data sub-agents (parallel)
 
 ```
 phantom/
-├── src/                       # Next.js app (frontend + API)
-│   ├── app/
-│   │   ├── page.tsx           # Search input page
-│   │   ├── results/page.tsx   # Results dashboard
-│   │   └── api/
-│   │       ├── scan/route.ts  # SSE streaming scan endpoint
-│   │       └── health/route.ts
-│   ├── components/
-│   │   ├── SearchBar.tsx
-│   │   ├── JobCard.tsx
-│   │   ├── ScoreRing.tsx
-│   │   └── LoadingAgent.tsx
-│   └── lib/
-│       ├── agents/            # 4 Bright Data sub-agent tools
-│       ├── scoring/           # Deterministic + LLM synthesis
-│       ├── orchestration/     # Pipeline + cache
-│       ├── types/             # Zod schemas
-│       ├── data/              # Scoring weights, keywords, prompts
-│       ├── config/            # Env loading
-│       └── middleware/        # Rate limiter
-└── docs/
-    └── architecture.md
+├── app/
+│   ├── page.tsx               # Search input page
+│   ├── results/page.tsx       # Results dashboard
+│   ├── layout.tsx             # Root layout
+│   └── api/
+│       ├── scan/route.ts      # SSE streaming scan endpoint
+│       └── health/route.ts
+├── components/
+│   ├── SearchBar.tsx
+│   ├── JobCard.tsx
+│   ├── ScoreRing.tsx
+│   └── LoadingAgent.tsx
+├── lib/
+│   ├── agents/                # 4 Bright Data sub-agent tools
+│   ├── scoring/               # Deterministic + LLM synthesis
+│   ├── orchestration/         # Pipeline + cache
+│   ├── types/                 # Zod schemas
+│   ├── data/                  # Scoring weights, keywords, prompts, demo data
+│   ├── config/                # Env loading
+│   └── middleware/            # Rate limiter
+├── public/                    # Static assets
+├── docs/
+│   └── architecture.md
+├── package.json
+├── tsconfig.json
+├── next.config.ts
+└── .env.example
 ```
 
 ## License

@@ -1,3 +1,14 @@
+/**
+ * Web Unlocker Agent — Fetches Glassdoor review signals and company news.
+ *
+ * Uses Bright Data SERP API to search Google for:
+ * - Glassdoor reviews mentioning hiring freezes or layoffs
+ * - Recent news about company expansion or funding
+ *
+ * These signals have Medium and Low weight in the ghost job scoring system.
+ *
+ * @module agents/unlocker
+ */
 import { getEnv } from "@/lib/config/env";
 import {
   BRIGHT_DATA_API_URL,
@@ -60,7 +71,10 @@ async function fetchGlassdoorViaGoogle(company: string, apiKey: string, zone: st
 }
 
 async function fetchNewsViaGoogle(company: string, apiKey: string, zone: string): Promise<string | null> {
-  const encodedQuery = encodeURIComponent(`${company} hiring expansion funding 2024 2025`);
+  // Dynamically compute year range so news results stay current
+  const currentYear = new Date().getFullYear();
+  const previousYear = currentYear - 1;
+  const encodedQuery = encodeURIComponent(`${company} hiring expansion funding ${previousYear} ${currentYear}`);
   const searchUrl = `https://www.google.com/search?q=${encodedQuery}&tbm=nws&hl=en`;
 
   const headers = {
@@ -89,7 +103,8 @@ async function fetchNewsViaGoogle(company: string, apiKey: string, zone: string)
   }
 }
 
-function analyseSignals(
+/** @internal Exported for testing */
+export function analyseSignals(
   glassdoorContent: string | null,
   newsContent: string | null
 ): WebUnlockerSignals {

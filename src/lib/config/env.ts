@@ -1,3 +1,12 @@
+/**
+ * Environment Configuration — Centralised loader for all environment variables.
+ *
+ * Reads from process.env on first access, caches the result, and throws
+ * immediately if a required variable is missing. This ensures fast-fail
+ * behaviour at startup rather than cryptic errors deep in the pipeline.
+ *
+ * @module config/env
+ */
 let _env: ReturnType<typeof loadEnv> | null = null;
 
 function loadEnv() {

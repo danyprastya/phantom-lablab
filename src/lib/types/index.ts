@@ -1,3 +1,13 @@
+/**
+ * Type Schemas — Zod schemas and TypeScript types for all Phantom data structures.
+ *
+ * Defines the canonical types for signals, job results, scan requests/responses,
+ * and streaming events. All modules should import types from here to ensure
+ * consistency. Zod schemas provide runtime validation; TypeScript types are
+ * inferred from them.
+ *
+ * @module types/index
+ */
 import { z } from "zod";
 
 export const Verdict = z.enum(["Real", "Suspicious", "Ghost"]);
@@ -78,12 +88,23 @@ export const MergedJobSignals = z.object({
 });
 export type MergedJobSignals = z.infer<typeof MergedJobSignals>;
 
+/**
+ * Counts how many of the 4 data sources returned meaningful data.
+ * Used to determine confidence level (High: 3-4, Medium: 2, Low: 0-1).
+ */
 export function sourcesWithData(merged: MergedJobSignals): number {
   let count = 0;
   if (merged.serp) count++;
   if (merged.indeed && (merged.indeed.posting_age_days != null || merged.indeed.repost_count != null)) count++;
   if (merged.linkedin && merged.linkedin.headcount_delta_pct != null) count++;
-  if (merged.web_unlocker && ((merged.web_unlocker.recent_news && merged.web_unlocker.recent_news.length > 0) || (merged.web_unlocker.glassdoor_review_snippets && merged.web_unlocker.glassdoor_review_snippets.length > 0))) count++;
+  if (merged.web_unlocker && (
+    merged.web_unlocker.glassdoor_mentions_freeze ||
+    merged.web_unlocker.glassdoor_mentions_layoffs ||
+    merged.web_unlocker.has_expansion_news ||
+    merged.web_unlocker.has_funding_news ||
+    (merged.web_unlocker.recent_news && merged.web_unlocker.recent_news.length > 0) ||
+    (merged.web_unlocker.glassdoor_review_snippets && merged.web_unlocker.glassdoor_review_snippets.length > 0)
+  )) count++;
   return count;
 }
 

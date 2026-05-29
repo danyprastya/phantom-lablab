@@ -45,6 +45,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (body.query.trim().length > 200) {
+    return new Response(
+      JSON.stringify({ error: "Query too long. Maximum 200 characters." }),
+      {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+  }
+
   const query = sanitiseQuery(body.query.trim());
   console.log(`Scan request: "${query}"`);
 

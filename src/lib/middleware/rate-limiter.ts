@@ -1,3 +1,16 @@
+/**
+ * Rate Limiter — IP-based sliding-window rate limiting for the /api/scan endpoint.
+ *
+ * Limits each IP to 5 requests per 60-second window to prevent abuse
+ * of Bright Data API credits. Uses an in-memory Map with automatic
+ * cleanup to prevent unbounded memory growth.
+ *
+ * Note: On serverless platforms (Vercel), each cold start gets a fresh Map.
+ * Rate limiting is best-effort in that environment — effective for burst
+ * protection but not for sustained abuse across different instances.
+ *
+ * @module middleware/rate-limiter
+ */
 const bucket = new Map<string, { count: number; resetAt: number }>();
 const MAX_REQUESTS = 5;
 const WINDOW_MS = 60_000;

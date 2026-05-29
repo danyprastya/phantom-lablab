@@ -1,11 +1,29 @@
-import { fetchSerpResults, extractJobInfoFromSerp } from "@/lib/agents/serp";
+/**
+ * Scan Orchestrator — Coordinates the full 6-phase pipeline for job scanning.
+ *
+ * Phase 1: SERP discovery (find job URLs from Google)
+ * Phase 2: Parallel enrichment (Indeed, LinkedIn, Web Unlocker — simultaneously)
+ * Phase 3: Merge signals per job
+ * Phase 4: Deterministic scoring (TypeScript, no LLM)
+ * Phase 5: LLM synthesis (Gemini, ±10 pts max)
+ * Phase 6: Sort, cache, and stream results via SSE
+ *
+ * Uses an async generator to yield StreamEvents progressively so the frontend
+ * can render results as they arrive rather than waiting for the full pipeline.
+ *
+ * @module orchestration/orchestrator
+ */
+import { fetchMultiSerpResults, extractJobInfoFromSerp } from "@/lib/agents/serp";
 import { fetchIndeedSignals } from "@/lib/agents/indeed";
 import { fetchLinkedInSignals } from "@/lib/agents/linkedin";
 import { fetchUnlockerSignals } from "@/lib/agents/unlocker";
+import { expandQuery } from "@/lib/agents/query-expander";
 import { computeDeterministicScore } from "@/lib/scoring/deterministic";
 import { synthesiseScore } from "@/lib/scoring/synthesis";
+import { rankByRelevance } from "@/lib/scoring/relevance";
 import { getCached, setCached } from "@/lib/orchestration/cache";
 import { MAX_JOBS_PER_SEARCH, SCAN_TIMEOUT_MS } from "@/lib/data";
+import { isDemoQuery, DEMO_RESULTS } from "@/lib/data/demo";
 import type { ScanRequest, StreamEvent, JobResult, MergedJobSignals } from "@/lib/types";
 
 const NULL_EVENT = { agent_name: null, status: null, data: null } as const;
@@ -72,17 +90,72 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
 
   const startTime = Date.now();
 
+  // Demo mode: if the demo query is used, attempt live first but fall back
+  // to preloaded results if live APIs return nothing. This is stored as a
+  // flag and checked at the end of the pipeline.
+  const demoMode = isDemoQuery(query);
+
   yield {
     ...NULL_EVENT,
     event_type: "agent_status", agent_name: "serp", status: "querying",
-    message: "Searching for job postings across the web...",
+    message: "Analyzing your query and expanding search variations...",
     data: null,
   };
 
-  const serpResults = await fetchSerpResults(query, MAX_JOBS_PER_SEARCH);
-  const jobsInfo = (await extractJobInfoFromSerp(serpResults)).slice(0, MAX_JOBS_PER_SEARCH);
+  // Step 1: NLP query expansion — generate 2-3 search variations
+  const expanded = await expandQuery(query);
+  console.log(`Query expansion: "${query}" → [${expanded.variations.join(" | ")}]`);
+
+  yield {
+    ...NULL_EVENT,
+    event_type: "agent_status", agent_name: "serp", status: "querying",
+    message: `Searching ${expanded.variations.length} query variations across the web...`,
+    data: null,
+  };
+
+  // Step 2: Run all variations through SERP in parallel
+  const rawSerpResults = await fetchMultiSerpResults(expanded.variations, MAX_JOBS_PER_SEARCH);
+
+  // Step 3: Deduplicate and rank by TF-IDF relevance to original query
+  const rankedResults = rankByRelevance(query, rawSerpResults);
+  console.log(`Relevance ranking: ${rawSerpResults.length} raw → ${rankedResults.length} after dedup+filter`);
+
+  // Step 4: Extract structured job info from top results
+  const jobsInfo = (await extractJobInfoFromSerp(rankedResults)).slice(0, MAX_JOBS_PER_SEARCH);
 
   if (jobsInfo.length === 0) {
+    // Demo fallback: if live SERP returned nothing for the demo query,
+    // serve preloaded curated results so the demo never shows a blank screen.
+    if (demoMode) {
+      console.log("Demo mode fallback: serving preloaded results");
+      yield {
+        ...NULL_EVENT,
+        event_type: "agent_status", agent_name: "serp", status: "complete",
+        message: "Demo mode — serving curated results...",
+        data: null,
+      };
+
+      for (const job of DEMO_RESULTS) {
+        // Small delay between results for a natural streaming feel
+        await new Promise((r) => setTimeout(r, 400));
+        yield {
+          ...NULL_EVENT,
+          event_type: "job_result",
+          message: `Scored: ${job.job_title} — ${job.score}/100 (${job.verdict})`,
+          data: job as unknown as Record<string, unknown>,
+        };
+      }
+
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      yield {
+        ...NULL_EVENT,
+        event_type: "scan_complete",
+        message: `Demo scan complete — ${DEMO_RESULTS.length} jobs in ${elapsed}s`,
+        data: { query, total_jobs: DEMO_RESULTS.length, jobs: DEMO_RESULTS as unknown[] },
+      };
+      return;
+    }
+
     yield {
       ...NULL_EVENT,
       event_type: "agent_status", agent_name: "serp", status: "failed",

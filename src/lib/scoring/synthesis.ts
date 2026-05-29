@@ -1,3 +1,13 @@
+/**
+ * LLM Synthesis — Google Gemini-powered score synthesis and explanation generation.
+ *
+ * Takes the deterministic score and signal breakdown, sends them to Gemini with
+ * a closed-context prompt, and receives back an adjusted score (±10 max) and a
+ * plain-English summary. Falls back to a template-based summary if the LLM call
+ * fails or GOOGLE_API_KEY is not set.
+ *
+ * @module scoring/synthesis
+ */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getEnv } from "@/lib/config/env";
 import { SYNTHESIS_SYSTEM_PROMPT, buildSynthesisPrompt } from "@/lib/data";

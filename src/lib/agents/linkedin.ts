@@ -1,3 +1,14 @@
+/**
+ * LinkedIn Agent — Fetches company headcount and growth signals via Bright Data Web Scraper.
+ *
+ * Extracts:
+ * - headcount: Current employee count
+ * - headcount_delta_pct: Growth trajectory (positive = growing, negative = shrinking)
+ *
+ * Uses keyword heuristics to estimate growth direction from LinkedIn company page content.
+ *
+ * @module agents/linkedin
+ */
 import { getEnv } from "@/lib/config/env";
 import { BRIGHT_DATA_API_URL } from "@/lib/data";
 import type { LinkedInSignals } from "@/lib/types";
@@ -5,7 +16,11 @@ import type { LinkedInSignals } from "@/lib/types";
 export async function fetchLinkedInSignals(query: string, company?: string): Promise<LinkedInSignals> {
   const env = getEnv();
   const searchTarget = company || query;
-  const linkedinUrl = `https://www.linkedin.com/company/${slugify(searchTarget)}/about/`;
+
+  // Step 1: Try to find the actual LinkedIn company URL via Google search.
+  // This is far more reliable than guessing the slug from the company name.
+  const linkedinUrl = await resolveLinkedInUrl(searchTarget, env.BRIGHT_DATA_API_KEY, env.BRIGHT_DATA_SERP_ZONE)
+    ?? `https://www.linkedin.com/company/${slugify(searchTarget)}/about/`;
 
   const headers = {
     "Content-Type": "application/json",
@@ -13,7 +28,7 @@ export async function fetchLinkedInSignals(query: string, company?: string): Pro
   };
 
   const payload = {
-    zone: env.BRIGHT_DATA_WEB_UNLOCKER_ZONE,
+    zone: env.BRIGHT_DATA_WEB_SCRAPER_ZONE,
     url: linkedinUrl,
     format: "json",
     data_format: "markdown",
@@ -63,6 +78,50 @@ export async function fetchLinkedInSignals(query: string, company?: string): Pro
       source: "LinkedIn Scraper",
     };
   }
+}
+
+/**
+ * Resolves the actual LinkedIn company URL by searching Google.
+ * Returns the first linkedin.com/company/ URL found, or null.
+ */
+async function resolveLinkedInUrl(company: string, apiKey: string, zone: string): Promise<string | null> {
+  const encodedQuery = encodeURIComponent(`${company} site:linkedin.com/company`);
+  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&hl=en&num=3`;
+
+  try {
+    const response = await fetch(BRIGHT_DATA_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ zone, url: searchUrl, format: "json", brd_json: true }),
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const organic = (data.organic ?? data.results ?? []) as Array<Record<string, unknown>>;
+
+    for (const item of organic) {
+      const url = (item.link ?? item.url ?? "") as string;
+      // Match URLs like linkedin.com/company/stripe or linkedin.com/company/stripe/about
+      if (/linkedin\.com\/company\/[a-z0-9-]+/i.test(url)) {
+        // Normalize to the /about/ page for headcount data
+        const match = url.match(/(https?:\/\/[^/]*linkedin\.com\/company\/[a-z0-9-]+)/i);
+        if (match) {
+          const resolved = `${match[1]}/about/`;
+          console.log(`LinkedIn: resolved "${company}" → ${resolved}`);
+          return resolved;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`LinkedIn URL resolution failed for "${company}": ${err}`);
+  }
+
+  return null;
 }
 
 function parseLinkedInMarkdown(content: string, company: string): LinkedInSignals | null {

@@ -1,3 +1,14 @@
+/**
+ * Indeed Agent — Fetches job posting signals from Indeed via Bright Data Web Scraper.
+ *
+ * Extracts:
+ * - posting_age_days: How old the job listing is
+ * - repost_count: How many times the listing has been reposted
+ *
+ * These are high-weight signals in the ghost job scoring system.
+ *
+ * @module agents/indeed
+ */
 import { getEnv } from "@/lib/config/env";
 import { BRIGHT_DATA_API_URL } from "@/lib/data";
 import type { IndeedSignals } from "@/lib/types";
@@ -14,7 +25,7 @@ export async function fetchIndeedSignals(query: string, company?: string): Promi
   };
 
   const payload = {
-    zone: env.BRIGHT_DATA_WEB_UNLOCKER_ZONE,
+    zone: env.BRIGHT_DATA_WEB_SCRAPER_ZONE,
     url: indeedUrl,
     format: "json",
     data_format: "markdown",

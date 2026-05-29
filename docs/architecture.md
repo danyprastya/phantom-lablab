@@ -2,12 +2,13 @@
 
 ## System Overview
 
-Phantom is a hiring intelligence agent built as a two-tier web application:
+Phantom is a hiring intelligence agent built as a **Next.js monolith** using the App Router:
 
-1. **Frontend** (Next.js 14, App Router) — search UI, results dashboard, API route proxy
-2. **Backend** (Python FastAPI + LangChain) — agent orchestration, Bright Data integration, scoring engine
+1. **Frontend** — React UI with search input, SSE-powered results dashboard, and agent activity panel
+2. **API Layer** — Next.js API routes (`/api/scan`, `/api/health`) that proxy all Bright Data calls server-side
+3. **Agent Pipeline** — TypeScript modules that call 4 Bright Data tools in parallel, score signals deterministically, and synthesise results with Google Gemini
 
-All communication between frontend and backend happens through the Next.js API route (`/api/scan`), which proxies to the Python backend. The backend URL is never exposed to the client.
+The architecture is a single deployable unit on Vercel. The Python/FastAPI backend described in early planning was consolidated into TypeScript to reduce deployment complexity for the hackathon. All Bright Data API calls happen server-side — the client never sees API keys or raw scraper responses.
 
 ## Data Flow
 
@@ -19,43 +20,44 @@ All communication between frontend and backend happens through the Next.js API r
                          │
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   NEXT.JS FRONTEND                               │
+│                   NEXT.JS APP                                    │
 │                                                                  │
 │  page.tsx (search) ──→ /api/scan/route.ts ──→ results/page.tsx  │
-│                        (proxy to backend)     (SSE consumer)     │
+│                        (rate limit, sanitise, orchestrate)       │
+│                        (SSE streaming response)                  │
 └────────────────────────┬────────────────────────────────────────┘
-                         │ POST /api/scan
+                         │ Phase 1: SERP Discovery
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   FASTAPI BACKEND                                │
-│                                                                  │
-│  main.py                                                        │
-│    ├── Input validation & sanitisation                          │
-│    ├── Rate limiting (5/min/IP)                                 │
-│    └── StreamingResponse (SSE)                                  │
-│                                                                  │
-│  agent/orchestrator.py                                          │
-│    ├── Check in-memory cache                                    │
-│    ├── Phase 1: SERP Discovery (find job URLs)                  │
-│    ├── Phase 2: Parallel enrichment per job                     │
-│    │     ├── Indeed Scraper (posting age, reposts)               │
-│    │     ├── LinkedIn Scraper (headcount, growth)                │
-│    │     └── Web Unlocker (Glassdoor, news)                     │
-│    ├── Phase 3: Merge signals per job                           │
-│    ├── Phase 4: Deterministic scoring (Python)                  │
-│    ├── Phase 5: LLM synthesis (GPT-4o, ±10 pts)                │
-│    └── Phase 6: Sort by score, cache, stream results            │
+│              BRIGHT DATA — SERP API                              │
+│        Discover job postings from Google search                  │
 └────────────────────────┬────────────────────────────────────────┘
-                         │
+                         │ Phase 2: Parallel Enrichment (per job)
                          ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                   BRIGHT DATA TOOLS                              │
+│                   BRIGHT DATA TOOLS (parallel)                   │
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │  SERP API    │  │  Web Scraper │  │ Web Unlocker │          │
-│  │  (discovery) │  │  (Indeed,    │  │ (Glassdoor,  │          │
-│  │              │  │   LinkedIn)  │  │  news sites) │          │
+│  │  Web Scraper  │  │  Web Scraper  │  │  SERP API    │          │
+│  │  (Indeed:     │  │  (LinkedIn:   │  │  + Unlocker   │          │
+│  │   age, repost)│  │   headcount)  │  │  (Glassdoor,  │          │
+│  │              │  │              │  │   news)       │          │
 │  └──────────────┘  └──────────────┘  └──────────────┘          │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ Phase 3–5: Score & Synthesise
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              SCORING ENGINE                                      │
+│                                                                  │
+│  deterministic.ts → Fixed-weight signal scoring (Python-style)  │
+│  synthesis.ts     → Google Gemini synthesis (±10 pts max)       │
+└────────────────────────┬────────────────────────────────────────┘
+                         │ Phase 6: Stream results via SSE
+                         ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              RESULTS DASHBOARD                                   │
+│  Job cards ranked by Hiring Reality Score (0–100)               │
+│  Signal breakdown, verdict badges, confidence indicators        │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -67,41 +69,61 @@ The system enforces 4 techniques to ensure the LLM never generates facts from it
 The LLM system prompt explicitly states: "Use ONLY the data provided. If a data point is absent, output 'not found' — do not infer or estimate." This is enforced on every scoring call.
 
 ### 2. Structured Output with Source Tagging
-Every signal in the output includes a `source` field identifying which Bright Data tool returned it. The Pydantic `Signal` model requires this field — signals without sources are structurally invalid and cannot be created.
+Every signal in the output includes a `source` field identifying which Bright Data tool returned it. The Zod `Signal` schema requires this field — signals without sources are structurally invalid and cannot be created.
 
 ### 3. Confidence Signalling
 If fewer than 3 of 4 scrapers return data, confidence is set to "Low" and the UI shows a data warning. High-confidence scores are never presented on thin data.
 
 ### 4. Deterministic Signal Scoring
-Posting age, headcount delta, and repost count are scored by Python functions — not by the LLM. The LLM receives pre-computed signal weights and synthesises them into a final score with explanation. The LLM can adjust by ±10 points maximum. It cannot override a deterministic signal value.
+Posting age, headcount delta, and repost count are scored by TypeScript functions — not by the LLM. The LLM receives pre-computed signal weights and synthesises them into a final score with explanation. The LLM can adjust by ±10 points maximum. It cannot override a deterministic signal value.
 
 ## Module Responsibilities
 
-| Module | Responsibility |
-|---|---|
-| `agent/tools/serp.py` | Job discovery via Google search results |
-| `agent/tools/indeed.py` | Posting age, repost count from Indeed |
-| `agent/tools/linkedin.py` | Headcount, growth trajectory from LinkedIn |
-| `agent/tools/unlocker.py` | Glassdoor reviews, company news |
-| `agent/scoring/deterministic.py` | Fixed-weight signal scoring (no LLM) |
-| `agent/scoring/llm_synthesis.py` | LLM synthesis with ±10 guardrail |
-| `agent/orchestrator.py` | Coordinates all sub-agents, caching, streaming |
-| `main.py` | FastAPI server, rate limiting, CORS, validation |
-| `models/schemas.py` | All Pydantic data models |
+| Module | Path | Responsibility |
+|---|---|---|
+| SERP Agent | `lib/agents/serp.ts` | Job discovery via Bright Data SERP API (Google search) |
+| Indeed Agent | `lib/agents/indeed.ts` | Posting age, repost count via Bright Data Web Scraper |
+| LinkedIn Agent | `lib/agents/linkedin.ts` | Headcount, growth trajectory via Bright Data Web Scraper |
+| Web Unlocker Agent | `lib/agents/unlocker.ts` | Glassdoor reviews, company news via Bright Data SERP + Web Unlocker |
+| Deterministic Scoring | `lib/scoring/deterministic.ts` | Fixed-weight signal scoring (no LLM involved) |
+| LLM Synthesis | `lib/scoring/synthesis.ts` | Google Gemini synthesis with ±10 guardrail |
+| Orchestrator | `lib/orchestration/orchestrator.ts` | Coordinates all sub-agents, caching, SSE streaming |
+| Cache | `lib/orchestration/cache.ts` | In-memory TTL cache to prevent re-scraping |
+| Rate Limiter | `lib/middleware/rate-limiter.ts` | IP-based sliding window (5 req/min/IP) |
+| Type Schemas | `lib/types/index.ts` | All Zod schemas and TypeScript types |
+| Constants | `lib/data/index.ts` | Scoring weights, keyword lists, LLM prompts |
+| Env Config | `lib/config/env.ts` | Centralised environment variable loader |
+| Scan API Route | `app/api/scan/route.ts` | SSE endpoint — validates, rate-limits, streams results |
+| Health API Route | `app/api/health/route.ts` | Simple health check |
 
 ## Security
 
 - All API keys in environment variables (`.env`), never in code
-- Rate limiting: 5 requests/IP/minute via `slowapi`
-- CORS: only frontend domain allowed
-- Input sanitisation: HTML/script tags stripped, special characters removed
-- Backend URL hidden behind Next.js API proxy
+- Rate limiting: 5 requests/IP/minute via custom sliding-window implementation
+- Input sanitisation: HTML/script tags stripped, special characters removed, max 200 chars
+- All Bright Data calls happen server-side — API keys never reach the client
 - No persistent storage — stateless, results in browser session only
+- Security headers: X-Frame-Options DENY, X-Content-Type-Options nosniff, strict Referrer-Policy
 
 ## Performance
 
 - Target: under 15 seconds per search
-- All 4 Bright Data sub-agents run in parallel via `asyncio.gather()`
-- In-memory cache prevents re-scraping identical queries
+- SERP discovery runs first, then 3 enrichment agents run in parallel via `Promise.all()`
+- In-memory cache (5 min TTL, 100 entries max) prevents re-scraping identical queries
 - Results limited to 10 jobs per search
-- Streaming SSE: frontend shows results progressively as each job is scored
+- SSE streaming: frontend shows results progressively as each job is scored
+- 60-second hard timeout prevents hung requests
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Frontend | Next.js 16 (App Router) | UI, routing, API routes |
+| Styling | Tailwind CSS v4 | Utility-first styling |
+| Type Validation | Zod | Runtime schema validation |
+| LLM | Google Gemini (gemini-1.5-flash) | Signal synthesis and score adjustment |
+| Job Discovery | Bright Data SERP API | Live Google search results |
+| Job Signals | Bright Data Web Scraper (Indeed) | Posting age, repost history |
+| Company Signals | Bright Data Web Scraper (LinkedIn) | Headcount, growth trajectory |
+| Site Content | Bright Data SERP API + Web Unlocker | Glassdoor reviews, company news |
+| Deployment | Vercel | Next.js hosting (single deployment) |

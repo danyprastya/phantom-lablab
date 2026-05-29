@@ -1,15 +1,7 @@
 "use client";
 
 import ScoreRing from "./ScoreRing";
-
-interface Signal {
-  signal: string;
-  value: string;
-  source: string;
-  weight: string;
-  direction: string;
-  points: number;
-}
+import type { Signal, Verdict, Confidence } from "@/lib/types";
 
 interface JobCardProps {
   job_title: string;
@@ -17,8 +9,8 @@ interface JobCardProps {
   location: string;
   url: string;
   score: number;
-  verdict: "Real" | "Suspicious" | "Ghost";
-  confidence: "High" | "Medium" | "Low";
+  verdict: Verdict;
+  confidence: Confidence;
   signals: Signal[];
   summary: string;
   sources_checked: number;

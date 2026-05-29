@@ -1,3 +1,12 @@
+/**
+ * Data Constants — Scoring weights, thresholds, keyword lists, and LLM prompts.
+ *
+ * All deterministic scoring parameters are defined here so they can be tuned
+ * in one place without touching the scoring logic. The LLM synthesis prompt
+ * is also centralised here to keep prompt engineering separate from code.
+ *
+ * @module data/index
+ */
 export const POSTING_AGE_MAX_POINTS = 30;
 export const REPOST_COUNT_MAX_POINTS = 25;
 export const HEADCOUNT_DELTA_MAX_POINTS = 20;

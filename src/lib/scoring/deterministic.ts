@@ -1,3 +1,15 @@
+/**
+ * Deterministic Scoring — Fixed-weight signal scoring engine (no LLM involved).
+ *
+ * Computes a ghost score from 5 signals: posting age, repost count, headcount delta,
+ * recent news, and Glassdoor signals. Each signal has a maximum point value defined
+ * in data/index.ts. The Hiring Reality Score = 100 - ghost score.
+ *
+ * The LLM receives these pre-computed scores and can only adjust by ±10 points.
+ * This ensures scoring is deterministic, reproducible, and not hallucinated.
+ *
+ * @module scoring/deterministic
+ */
 import {
   POSTING_AGE_MAX_POINTS,
   REPOST_COUNT_MAX_POINTS,

@@ -1,3 +1,11 @@
+/**
+ * Scan Cache — In-memory TTL cache for search results.
+ *
+ * Prevents re-scraping when the same query is repeated within 5 minutes.
+ * Capped at 100 entries with FIFO eviction to prevent memory growth.
+ *
+ * @module orchestration/cache
+ */
 import type { ScanResponse } from "@/lib/types";
 
 interface CacheEntry {
