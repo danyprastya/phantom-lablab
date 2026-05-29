@@ -8,21 +8,17 @@
  *
  * @module scoring/synthesis
  */
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 import { getEnv } from "@/lib/config/env";
 import { SYNTHESIS_SYSTEM_PROMPT, buildSynthesisPrompt } from "@/lib/data";
 import type { MergedJobSignals, JobResult, Signal, Verdict, Confidence, DeterministicScoreResult } from "@/lib/types";
 
-let _llmClient: ReturnType<typeof createLLMClient> | null = null;
+let _llmClient: Groq | null = null;
 
-function createLLMClient() {
+function createLLMClient(): Groq | null {
   const env = getEnv();
-  if (!env.GOOGLE_API_KEY) return null;
-  const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
-  return genAI.getGenerativeModel({
-    model: env.LLM_MODEL || "gemini-1.5-flash",
-    systemInstruction: SYNTHESIS_SYSTEM_PROMPT,
-  });
+  if (!env.GROQ_API_KEY) return null;
+  return new Groq({ apiKey: env.GROQ_API_KEY });
 }
 
 function getLLMClient() {
@@ -105,19 +101,26 @@ async function callLLM(userPrompt: string): Promise<{
   adjustment_reason?: string;
   summary?: string;
 } | null> {
-  const model = getLLMClient();
-  if (!model) {
-    console.warn("GOOGLE_API_KEY not set — using fallback scoring");
+  const groq = getLLMClient();
+  if (!groq) {
+    console.warn("GROQ_API_KEY not set — using fallback scoring");
     return null;
   }
 
+  const env = getEnv();
+
   try {
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: userPrompt }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 500 },
+    const result = await groq.chat.completions.create({
+      model: env.LLM_MODEL || "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: SYNTHESIS_SYSTEM_PROMPT },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.1,
+      max_tokens: 500,
     });
 
-    const text = result.response.text();
+    const text = result.choices[0]?.message?.content || "";
     let jsonStr = text.trim();
 
     if (jsonStr.startsWith("```json")) {

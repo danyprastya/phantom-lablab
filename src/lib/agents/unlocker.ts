@@ -17,6 +17,7 @@ import {
   EXPANSION_KEYWORDS,
   FUNDING_KEYWORDS,
 } from "@/lib/data";
+import { parseGoogleSerpHtml } from "@/lib/parsers/serp-html";
 import type { WebUnlockerSignals } from "@/lib/types";
 
 export async function fetchUnlockerSignals(query: string, company?: string): Promise<WebUnlockerSignals | null> {
@@ -49,7 +50,7 @@ async function fetchGlassdoorViaGoogle(company: string, apiKey: string, zone: st
     Authorization: `Bearer ${apiKey}`,
   };
 
-  const payload = { zone, url: searchUrl, format: "json", brd_json: true };
+  const payload = { zone, url: searchUrl };
 
   try {
     const response = await fetch(BRIGHT_DATA_API_URL, {
@@ -61,9 +62,9 @@ async function fetchGlassdoorViaGoogle(company: string, apiKey: string, zone: st
 
     if (!response.ok) return null;
 
-    const data = (await response.json()) as Record<string, unknown>;
-    const organic = (data.organic ?? []) as Array<Record<string, unknown>>;
-    return organic.slice(0, 5).map((item) => (item.description ?? item.snippet ?? "") as string).join(" ");
+    const html = await response.text();
+    const parsed = parseGoogleSerpHtml(html, 5);
+    return parsed.map((item) => `${item.title} ${item.snippet}`).join(" ");
   } catch (err) {
     console.warn(`Glassdoor Google search failed for "${company}": ${err}`);
     return null;
@@ -82,7 +83,7 @@ async function fetchNewsViaGoogle(company: string, apiKey: string, zone: string)
     Authorization: `Bearer ${apiKey}`,
   };
 
-  const payload = { zone, url: searchUrl, format: "json", brd_json: true };
+  const payload = { zone, url: searchUrl };
 
   try {
     const response = await fetch(BRIGHT_DATA_API_URL, {
@@ -94,9 +95,9 @@ async function fetchNewsViaGoogle(company: string, apiKey: string, zone: string)
 
     if (!response.ok) return null;
 
-    const data = (await response.json()) as Record<string, unknown>;
-    const organic = (data.organic ?? data.news ?? []) as Array<Record<string, unknown>>;
-    return organic.slice(0, 5).map((item) => (item.description ?? item.snippet ?? "") as string).join(" ");
+    const html = await response.text();
+    const parsed = parseGoogleSerpHtml(html, 5);
+    return parsed.map((item) => `${item.title} ${item.snippet}`).join(" ");
   } catch (err) {
     console.warn(`News Google search failed for "${company}": ${err}`);
     return null;

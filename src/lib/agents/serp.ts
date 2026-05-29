@@ -9,6 +9,7 @@
  */
 import { getEnv } from "@/lib/config/env";
 import { BRIGHT_DATA_API_URL } from "@/lib/data";
+import { parseGoogleSerpHtml } from "@/lib/parsers/serp-html";
 import type { SERPResult } from "@/lib/types";
 
 export async function fetchSerpResults(query: string, maxResults = 10): Promise<SERPResult[]> {
@@ -20,8 +21,6 @@ export async function fetchSerpResults(query: string, maxResults = 10): Promise<
   const payload = {
     zone: env.BRIGHT_DATA_SERP_ZONE,
     url: searchUrl,
-    format: "json",
-    brd_json: true,
   };
 
   const headers = {
@@ -42,20 +41,15 @@ export async function fetchSerpResults(query: string, maxResults = 10): Promise<
       return [];
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
-    const results: SERPResult[] = [];
-    const organic = (data.organic ?? data.results ?? []) as Array<Record<string, unknown>>;
+    const html = await response.text();
+    const parsed = parseGoogleSerpHtml(html, maxResults);
 
-    for (const item of organic.slice(0, maxResults)) {
-      const url = (item.link ?? item.url ?? "") as string;
-      if (!url) continue;
-      results.push({
-        title: (item.title ?? "") as string,
-        url,
-        snippet: (item.description ?? item.snippet ?? "") as string,
-        source: "SERP API",
-      });
-    }
+    const results: SERPResult[] = parsed.map((item) => ({
+      title: item.title,
+      url: item.url,
+      snippet: item.snippet,
+      source: "SERP API",
+    }));
 
     console.log(`SERP API returned ${results.length} results for: ${query}`);
     return results;

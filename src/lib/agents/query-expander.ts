@@ -12,7 +12,7 @@
  *
  * @module agents/query-expander
  */
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import Groq from "groq-sdk";
 import { getEnv } from "@/lib/config/env";
 
 export interface ExpandedQueries {
@@ -46,25 +46,23 @@ export async function expandQuery(query: string): Promise<ExpandedQueries> {
 
   try {
     const env = getEnv();
-    if (!env.GOOGLE_API_KEY) {
-      console.log("Query expander: no API key, using deterministic fallback");
+    if (!env.GROQ_API_KEY) {
+      console.log("Query expander: no GROQ_API_KEY, using deterministic fallback");
       return { original: trimmed, variations: deterministicExpand(trimmed) };
     }
 
-    const genAI = new GoogleGenerativeAI(env.GOOGLE_API_KEY);
-    const model = genAI.getGenerativeModel({
-      model: env.LLM_MODEL || "gemini-1.5-flash",
+    const groq = new Groq({ apiKey: env.GROQ_API_KEY });
+    const result = await groq.chat.completions.create({
+      model: env.LLM_MODEL || "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: EXPANSION_PROMPT },
+        { role: "user", content: `Input: "${trimmed}"` },
+      ],
+      temperature: 0.7,
+      max_tokens: 200,
     });
 
-    const result = await model.generateContent({
-      contents: [{ role: "user", parts: [{ text: `${EXPANSION_PROMPT}\n\nInput: "${trimmed}"` }] }],
-      generationConfig: {
-        temperature: 0.7,
-        maxOutputTokens: 200,
-      },
-    });
-
-    const text = result.response.text().trim();
+    const text = result.choices[0]?.message?.content?.trim() || "";
 
     // Parse JSON array from response (strip markdown fencing if present)
     const cleaned = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();

@@ -11,6 +11,7 @@
  */
 import { getEnv } from "@/lib/config/env";
 import { BRIGHT_DATA_API_URL } from "@/lib/data";
+import { parseGoogleSerpHtml } from "@/lib/parsers/serp-html";
 import type { LinkedInSignals } from "@/lib/types";
 
 export async function fetchLinkedInSignals(query: string, company?: string): Promise<LinkedInSignals> {
@@ -100,20 +101,18 @@ async function resolveLinkedInUrl(company: string, apiKey: string, zone: string)
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ zone, url: searchUrl, format: "json", brd_json: true }),
+      body: JSON.stringify({ zone, url: searchUrl }),
       signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) return null;
 
-    const data = (await response.json()) as Record<string, unknown>;
-    const organic = (data.organic ?? data.results ?? []) as Array<Record<string, unknown>>;
+    const html = await response.text();
+    const parsed = parseGoogleSerpHtml(html, 5);
 
-    for (const item of organic) {
-      const url = (item.link ?? item.url ?? "") as string;
-      // Match URLs like linkedin.com/company/stripe or linkedin.com/company/stripe/about
+    for (const item of parsed) {
+      const url = item.url;
       if (/linkedin\.com\/company\/[a-z0-9-]+/i.test(url)) {
-        // Normalize to the /about/ page for headcount data
         const match = url.match(/(https?:\/\/[^/]*linkedin\.com\/company\/[a-z0-9-]+)/i);
         if (match) {
           const resolved = `${match[1]}/about/`;

@@ -47,10 +47,18 @@ export async function executeScan(query: string, handlers: ScanStreamHandlers): 
 
     const decoder = new TextDecoder();
     let buffer = "";
+    const accumulatedJobs: JobResult[] = [];
+    let completed = false;
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        if (!completed && accumulatedJobs.length > 0) {
+          completed = true;
+          handlers.onComplete(accumulatedJobs);
+        }
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const blocks = buffer.split("\n\n");
@@ -64,7 +72,30 @@ export async function executeScan(query: string, handlers: ScanStreamHandlers): 
         if (!jsonStr || jsonStr === "[DONE]") continue;
 
         const event = JSON.parse(jsonStr) as StreamEvent;
-        handlers.onEvent(event);
+
+        if (event.event_type === "scan_complete") {
+          completed = true;
+          if (event.data?.jobs) {
+            handlers.onComplete(event.data.jobs as JobResult[]);
+          } else {
+            handlers.onComplete(accumulatedJobs);
+          }
+          continue;
+        }
+
+        if (event.event_type === "error") {
+          handlers.onError(event.message || "Scan error");
+          continue;
+        }
+
+        if (event.event_type === "job_result" && event.data) {
+          accumulatedJobs.push(event.data as unknown as JobResult);
+          continue;
+        }
+
+        if (event.event_type === "agent_status") {
+          handlers.onEvent(event);
+        }
       }
     }
   } catch (err) {

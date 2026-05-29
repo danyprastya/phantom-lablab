@@ -23,9 +23,9 @@ function loadEnv() {
     BRIGHT_DATA_SERP_ZONE: get("BRIGHT_DATA_SERP_ZONE", "serp"),
     BRIGHT_DATA_WEB_SCRAPER_ZONE: get("BRIGHT_DATA_WEB_SCRAPER_ZONE", "web_scraper"),
     BRIGHT_DATA_WEB_UNLOCKER_ZONE: get("BRIGHT_DATA_WEB_UNLOCKER_ZONE", "web_unlocker"),
-    GOOGLE_API_KEY: get("GOOGLE_API_KEY", ""),
+    GROQ_API_KEY: get("GROQ_API_KEY", ""),
     FRONTEND_URL: get("FRONTEND_URL", "http://localhost:3000"),
-    LLM_MODEL: get("LLM_MODEL", "gemini-1.5-flash"),
+    LLM_MODEL: get("LLM_MODEL", "llama-3.3-70b-versatile"),
     NODE_ENV: get("NODE_ENV", "development"),
   };
 }
