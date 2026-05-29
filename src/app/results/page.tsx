@@ -6,14 +6,7 @@ import SearchBar from "@/components/SearchBar";
 import LoadingAgent from "@/components/LoadingAgent";
 import JobCard from "@/components/JobCard";
 import JobDetailDrawer from "@/components/JobDetailDrawer";
-import type { Signal, JobResult } from "@/lib/types";
-
-interface AgentStep {
-  agent_name: string;
-  status: "querying" | "processing" | "complete" | "failed";
-  message: string;
-  timestamp: Date;
-}
+import type { Signal, JobResult, AgentStep } from "@/lib/types";
 
 /**
  * Results Page — Displays scan results with streaming updates.

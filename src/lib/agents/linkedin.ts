@@ -68,7 +68,12 @@ export async function fetchLinkedInSignals(query: string, company?: string): Pro
       console.warn(`LinkedIn: no parseable signals for "${searchTarget}"`);
     }
 
-    return signals;
+    return signals ?? {
+      headcount: null,
+      headcount_delta_pct: null,
+      recent_posts: null,
+      source: "LinkedIn Scraper",
+    };
   } catch (err) {
     console.error(`LinkedIn error: ${err}`);
     return {

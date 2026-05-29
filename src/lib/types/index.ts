@@ -25,6 +25,13 @@ export type SignalWeight = z.infer<typeof SignalWeight>;
 export const AgentStatus = z.enum(["querying", "processing", "complete", "failed", "idle"]);
 export type AgentStatus = z.infer<typeof AgentStatus>;
 
+export interface AgentStep {
+  agent_name: string;
+  status: AgentStatus;
+  message: string;
+  timestamp: Date;
+}
+
 export const ScanRequest = z.object({
   query: z.string().min(3).max(200),
 });

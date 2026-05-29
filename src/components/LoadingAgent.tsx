@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-interface AgentStep {
-  agent_name: string;
-  status: "querying" | "processing" | "complete" | "failed";
-  message: string;
-  timestamp: Date;
-}
+import type { AgentStep } from "@/lib/types";
 
 interface LoadingAgentProps {
   events: AgentStep[];

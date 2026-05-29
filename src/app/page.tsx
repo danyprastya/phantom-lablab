@@ -8,6 +8,7 @@ import JobCard from "@/components/JobCard";
 import JobDetailDrawer from "@/components/JobDetailDrawer";
 import LoadingAgent from "@/components/LoadingAgent";
 import { executeScan } from "@/lib/services/scan";
+import type { Signal, JobResult, AgentStep, Verdict, Confidence } from "@/lib/types";
 
 /**
  * Verity — Landing/Search Page
@@ -19,37 +20,6 @@ import { executeScan } from "@/lib/services/scan";
  */
 
 type PageState = "default" | "scanning" | "results";
-type Verdict = "Real" | "Suspicious" | "Ghost";
-
-interface Signal {
-  signal: string;
-  value: string;
-  source: string;
-  weight: string;
-  direction: string;
-  points: number;
-}
-
-interface JobResult {
-  job_title: string;
-  company: string;
-  location: string;
-  url: string;
-  score: number;
-  verdict: Verdict;
-  confidence: "High" | "Medium" | "Low";
-  signals: Signal[];
-  summary: string;
-  sources_checked: number;
-  salary?: string;
-}
-
-interface AgentStep {
-  agent_name: string;
-  status: "querying" | "processing" | "complete" | "failed";
-  message: string;
-  timestamp: Date;
-}
 
 // Static history shown in default state
 const historyJobs: JobResult[] = [
