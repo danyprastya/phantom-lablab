@@ -1,10 +1,10 @@
 /**
- * LLM Synthesis — Google Gemini-powered score synthesis and explanation generation.
+ * LLM Synthesis — Groq-powered score synthesis and explanation generation.
  *
- * Takes the deterministic score and signal breakdown, sends them to Gemini with
+ * Takes the deterministic score and signal breakdown, sends them to Groq with
  * a closed-context prompt, and receives back an adjusted score (±10 max) and a
  * plain-English summary. Falls back to a template-based summary if the LLM call
- * fails or GOOGLE_API_KEY is not set.
+ * fails or GROQ_API_KEY is not set.
  *
  * @module scoring/synthesis
  */
@@ -172,7 +172,14 @@ function generateFallbackSummary(
   if (merged.serp) sourcesCount++;
   if (merged.indeed && (merged.indeed.posting_age_days != null || merged.indeed.repost_count != null)) sourcesCount++;
   if (merged.linkedin && merged.linkedin.headcount_delta_pct != null) sourcesCount++;
-  if (merged.web_unlocker && ((merged.web_unlocker.recent_news && merged.web_unlocker.recent_news.length > 0) || (merged.web_unlocker.glassdoor_review_snippets && merged.web_unlocker.glassdoor_review_snippets.length > 0))) sourcesCount++;
+  if (merged.web_unlocker && (
+    merged.web_unlocker.glassdoor_mentions_freeze ||
+    merged.web_unlocker.glassdoor_mentions_layoffs ||
+    merged.web_unlocker.has_expansion_news ||
+    merged.web_unlocker.has_funding_news ||
+    (merged.web_unlocker.recent_news && merged.web_unlocker.recent_news.length > 0) ||
+    (merged.web_unlocker.glassdoor_review_snippets && merged.web_unlocker.glassdoor_review_snippets.length > 0)
+  )) sourcesCount++;
 
   if (sourcesCount < 3) {
     parts.push(`Note: Only ${sourcesCount} of 4 data sources returned data, so confidence in this assessment is limited.`);

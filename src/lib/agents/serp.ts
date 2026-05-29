@@ -9,18 +9,20 @@
  */
 import { getEnv } from "@/lib/config/env";
 import { BRIGHT_DATA_API_URL } from "@/lib/data";
-import { parseGoogleSerpHtml } from "@/lib/parsers/serp-html";
 import type { SERPResult } from "@/lib/types";
 
 export async function fetchSerpResults(query: string, maxResults = 10): Promise<SERPResult[]> {
   const env = getEnv();
-  const searchQuery = `${query} jobs hiring now`;
-  const encodedQuery = encodeURIComponent(searchQuery);
-  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&num=${maxResults}&hl=en`;
+  // Query is already expanded by the query-expander, don't add extra suffixes
+  const encodedQuery = encodeURIComponent(query);
+  // brd_json=1 tells Bright Data to return parsed JSON instead of raw HTML
+  // gl=us targets US job market, hl=en for English results
+  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&brd_json=1&num=${maxResults}&hl=en&gl=us`;
 
   const payload = {
     zone: env.BRIGHT_DATA_SERP_ZONE,
     url: searchUrl,
+    format: "raw",  // Required by Bright Data docs — "raw" returns the target's response
   };
 
   const headers = {
@@ -41,13 +43,36 @@ export async function fetchSerpResults(query: string, maxResults = 10): Promise<
       return [];
     }
 
-    const html = await response.text();
-    const parsed = parseGoogleSerpHtml(html, maxResults);
+    const data = (await response.json()) as Record<string, unknown>;
 
-    const results: SERPResult[] = parsed.map((item) => ({
-      title: item.title,
-      url: item.url,
-      snippet: item.snippet,
+    // Bright Data returns parsed SERP in multiple possible structures:
+    // 1. brd_json=1: { results: [{ type: "organic", title, url, description }] }
+    // 2. parsed_light: { organic: [{ link, title, description, global_rank }] }
+    // 3. full parsed:   { general, input, navigation: [{ title, link, description }] }
+    let items: Array<Record<string, unknown>> = [];
+
+    if (Array.isArray(data.organic)) {
+      // parsed_light format
+      items = data.organic as Array<Record<string, unknown>>;
+    } else if (Array.isArray(data.results)) {
+      // brd_json=1 format — filter to organic results only
+      items = (data.results as Array<Record<string, unknown>>).filter(
+        (r) => (r.type as string) === "organic"
+      );
+    } else if (Array.isArray(data.navigation)) {
+      // full parsed format
+      items = data.navigation as Array<Record<string, unknown>>;
+    }
+
+    if (items.length === 0) {
+      console.warn(`SERP API: parsed response has no organic results. Keys: [${Object.keys(data).join(", ")}]`);
+      console.warn(`SERP API: first 200 chars of raw response: ${JSON.stringify(data).slice(0, 200)}`);
+    }
+
+    const results: SERPResult[] = items.slice(0, maxResults).map((item) => ({
+      title: (item.title ?? "") as string,
+      url: (item.link ?? item.url ?? "") as string,
+      snippet: (item.description ?? item.snippet ?? "") as string,
       source: "SERP API",
     }));
 
@@ -85,17 +110,51 @@ export async function extractJobInfoFromSerp(results: SERPResult[]): Promise<{
   location: string;
   url: string;
   snippet: string;
+  salary: string | null;
 }[]> {
-  return results.map((result) => {
-    const parsed = parseJobTitle(result.title, result.url);
-    return {
-      job_title: parsed.job_title,
-      company: parsed.company,
-      location: parsed.location,
-      url: result.url,
-      snippet: result.snippet,
-    };
-  });
+  return results
+    .map((result) => {
+      const parsed = parseJobTitle(result.title, result.url);
+      const salary = extractSalary(result.snippet + " " + result.title);
+      return {
+        job_title: parsed.job_title,
+        company: parsed.company,
+        location: parsed.location,
+        url: result.url,
+        snippet: result.snippet,
+        salary,
+      };
+    })
+    .filter((job) => job.company !== "Unknown");
+}
+
+/**
+ * Extracts salary information from SERP snippets.
+ * Matches patterns like:
+ * - $120,000 - $150,000
+ * - $80K - $120K
+ * - $45/hr - $65/hr
+ * - $120,000 a year
+ * - £50,000 - £70,000
+ */
+export function extractSalary(text: string): string | null {
+  if (!text) return null;
+
+  const patterns = [
+    // Range: $120,000 - $150,000 or $120K-$150K
+    /[\$£€]\s?[\d,]+\.?\d*\s?[kK]?\s*[-–—to]+\s*[\$£€]?\s?[\d,]+\.?\d*\s?[kK]?\s*(?:per\s+(?:year|annum|month|hour|hr)|a\s+(?:year|month)|\/?\s?(?:yr|year|mo|month|hr|hour))?/gi,
+    // Single: $120,000 a year or $120K/yr
+    /[\$£€]\s?[\d,]+\.?\d*\s?[kK]?\s*(?:per\s+(?:year|annum|month|hour|hr)|a\s+(?:year|month)|\/?\s?(?:yr|year|mo|month|hr|hour))/gi,
+    // Single number with currency: $120,000 or $120K
+    /[\$£€]\s?\d{2,3},?\d{3}(?:\.\d{2})?/g,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match[0].trim();
+  }
+
+  return null;
 }
 
 /**

@@ -60,6 +60,7 @@ export const IndeedSignals = z.object({
   repost_count: z.number().int().nullable().default(null),
   date_posted: z.string().nullable().default(null),
   company_name: z.string().nullable().default(null),
+  salary: z.string().nullable().default(null),
   source: z.string().default("Indeed Scraper"),
 });
 export type IndeedSignals = z.infer<typeof IndeedSignals>;

@@ -19,9 +19,41 @@ describe("deterministicExpand", () => {
     expect(result.length).toBeLessThanOrEqual(3);
   });
 
-  it("should always include the original query with 'jobs hiring now'", () => {
+  it("should include the original query with 'jobs hiring now' when no job keyword present", () => {
     const result = deterministicExpand("data scientist machine learning");
     expect(result[0]).toBe("data scientist machine learning jobs hiring now");
+  });
+
+  it("should NOT append job suffix when query already contains 'jobs'", () => {
+    const result = deterministicExpand("software engineer jobs fintech");
+    // No variation should contain double "jobs" or redundant suffix
+    const doubleSuffix = result.some((v) => v.includes("jobs jobs") || v.includes("jobs hiring now"));
+    expect(doubleSuffix).toBe(false);
+    // At least one variation should contain the original phrasing
+    const hasOriginal = result.some((v) => v.includes("software engineer jobs fintech"));
+    expect(hasOriginal).toBe(true);
+  });
+
+  it("should NOT append job suffix when query already contains 'hiring'", () => {
+    const result = deterministicExpand("hiring software engineer remote");
+    // No variation should contain "hiring ... hiring" or "hiring ... jobs hiring now"
+    const doubleSuffix = result.some(
+      (v) => {
+        const lower = v.toLowerCase();
+        const hiringCount = lower.split("hiring").length - 1;
+        return hiringCount > 1;
+      }
+    );
+    expect(doubleSuffix).toBe(false);
+  });
+
+  it("should still append job keywords for queries without them", () => {
+    const result = deterministicExpand("frontend developer react");
+    // At least one variation should contain "jobs", "hiring", or "careers"
+    const hasJobKeyword = result.some((v) =>
+      /jobs|hiring|careers/.test(v.toLowerCase())
+    );
+    expect(hasJobKeyword).toBe(true);
   });
 
   it("should expand 'software engineer' synonym", () => {

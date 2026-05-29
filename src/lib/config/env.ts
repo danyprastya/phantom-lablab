@@ -21,7 +21,6 @@ function loadEnv() {
   return {
     BRIGHT_DATA_API_KEY: get("BRIGHT_DATA_API_KEY"),
     BRIGHT_DATA_SERP_ZONE: get("BRIGHT_DATA_SERP_ZONE", "serp"),
-    BRIGHT_DATA_WEB_SCRAPER_ZONE: get("BRIGHT_DATA_WEB_SCRAPER_ZONE", "web_scraper"),
     BRIGHT_DATA_WEB_UNLOCKER_ZONE: get("BRIGHT_DATA_WEB_UNLOCKER_ZONE", "web_unlocker"),
     GROQ_API_KEY: get("GROQ_API_KEY", ""),
     FRONTEND_URL: get("FRONTEND_URL", "http://localhost:3000"),

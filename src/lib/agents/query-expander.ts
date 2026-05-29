@@ -1,14 +1,14 @@
 /**
- * Query Expander — Uses Gemini LLM to expand natural language queries into
+ * Query Expander — Uses Groq LLM to expand natural language queries into
  * multiple optimised search variations.
  *
  * Instead of sending the user's exact words to Google, we:
- * 1. Ask Gemini to extract intent (role, seniority, industry, location)
+ * 1. Ask Groq to extract intent (role, seniority, industry, location)
  * 2. Generate 3 diverse search query variations with synonyms
  * 3. Run all variations through SERP in parallel
  * 4. Deduplicate results by URL
  *
- * Fallback: if Gemini is unavailable, uses a deterministic synonym expansion.
+ * Fallback: if Groq is unavailable, uses a deterministic synonym expansion.
  *
  * @module agents/query-expander
  */
@@ -26,7 +26,7 @@ const EXPANSION_PROMPT = `You are a job search query optimizer. Given a natural 
 
 RULES:
 1. Each variation should use different synonyms and phrasings
-2. Always include "jobs" or "hiring" or "careers" in each variation
+2. If the user's query does NOT already contain a job-related word (jobs, hiring, careers, positions, openings), add one. If it already contains such a word, do NOT add it again.
 3. Expand abbreviations (e.g., "SWE" → "Software Engineer", "ML" → "Machine Learning")
 4. If the query mentions a location, keep it. If not, don't add one.
 5. If the query mentions an industry/domain, include related terms
@@ -38,7 +38,7 @@ Example input: "frontend dev react startup"
 Example output: ["frontend developer react startup jobs", "react engineer hiring startup", "front-end web developer react careers"]`;
 
 /**
- * Expands a user query into multiple search variations using Gemini.
+ * Expands a user query into multiple search variations using Groq.
  * Falls back to deterministic expansion if LLM is unavailable.
  */
 export async function expandQuery(query: string): Promise<ExpandedQueries> {
@@ -76,7 +76,12 @@ export async function expandQuery(query: string): Promise<ExpandedQueries> {
     throw new Error("Invalid LLM response format");
   } catch (err) {
     console.warn(`Query expander LLM failed, using fallback: ${err}`);
-    return { original: trimmed, variations: deterministicExpand(trimmed) };
+    try {
+      return { original: trimmed, variations: deterministicExpand(trimmed) };
+    } catch {
+      // Last resort: return the original query with a simple suffix
+      return { original: trimmed, variations: [`${trimmed} jobs`, `${trimmed} hiring`] };
+    }
   }
 }
 
@@ -115,38 +120,55 @@ const SYNONYMS: Record<string, string[]> = {
   "onsite": ["on-site", "in-office", "in office"],
 };
 
+// ─── Job Keyword Detection ────────────────────────────────────────────────
+const JOB_KEYWORDS = [
+  "job", "jobs", "hiring", "careers", "career",
+  "position", "positions", "opening", "openings",
+  "vacancy", "vacancies",
+];
+
+function queryContainsJobKeyword(query: string): boolean {
+  const lower = query.toLowerCase();
+  return JOB_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 /**
  * Deterministic query expansion using a synonym dictionary.
- * Used as fallback when Gemini is unavailable.
+ * Used as fallback when Groq is unavailable.
  */
 export function deterministicExpand(query: string): string[] {
   const lower = query.toLowerCase();
   const words = lower.split(/\s+/);
   const variations: string[] = [];
+  const hasJobKeyword = queryContainsJobKeyword(query);
 
-  // Variation 1: Original + "jobs hiring now"
-  variations.push(`${query} jobs hiring now`);
+  // Variation 1: Original query + job suffix (only if not already present)
+  variations.push(hasJobKeyword ? query : `${query} jobs hiring now`);
 
   // Variation 2: Replace first matching synonym
   let expanded = lower;
+  let expandedHasJobKeyword = hasJobKeyword;
   for (const [term, syns] of Object.entries(SYNONYMS)) {
     if (lower.includes(term)) {
       expanded = lower.replace(term, syns[0]);
+      expandedHasJobKeyword = queryContainsJobKeyword(expanded);
       break;
     }
   }
   if (expanded !== lower) {
-    variations.push(`${expanded} jobs`);
+    variations.push(expandedHasJobKeyword ? expanded : `${expanded} jobs`);
   }
 
   // Variation 3: Try bigram synonym matches, otherwise use word-level expansion
   let secondExpansion = lower;
+  let secondHasJobKeyword = hasJobKeyword;
   let found = false;
   // Try 2-word combos first
   for (let i = 0; i < words.length - 1; i++) {
     const bigram = `${words[i]} ${words[i + 1]}`;
     if (SYNONYMS[bigram]) {
       secondExpansion = lower.replace(bigram, SYNONYMS[bigram][1] || SYNONYMS[bigram][0]);
+      secondHasJobKeyword = queryContainsJobKeyword(secondExpansion);
       found = true;
       break;
     }
@@ -156,18 +178,19 @@ export function deterministicExpand(query: string): string[] {
     for (const word of words) {
       if (SYNONYMS[word] && lower.replace(word, SYNONYMS[word][0]) !== expanded) {
         secondExpansion = lower.replace(word, SYNONYMS[word][0]);
+        secondHasJobKeyword = queryContainsJobKeyword(secondExpansion);
         found = true;
         break;
       }
     }
   }
   if (found) {
-    variations.push(`${secondExpansion} careers`);
+    variations.push(secondHasJobKeyword ? secondExpansion : `${secondExpansion} careers`);
   }
 
   // Always ensure at least 2 variations
   if (variations.length < 2) {
-    variations.push(`${query} careers openings`);
+    variations.push(hasJobKeyword ? query : `${query} careers openings`);
   }
 
   return variations.slice(0, 3);

@@ -6,7 +6,7 @@ Phantom is a hiring intelligence agent built as a **Next.js monolith** using the
 
 1. **Frontend** — React UI with search input, SSE-powered results dashboard, and agent activity panel
 2. **API Layer** — Next.js API routes (`/api/scan`, `/api/health`) that proxy all Bright Data calls server-side
-3. **Agent Pipeline** — TypeScript modules that call 4 Bright Data tools in parallel, score signals deterministically, and synthesise results with Google Gemini
+3. **Agent Pipeline** — TypeScript modules that call 4 Bright Data tools in parallel, score signals deterministically, and synthesise results with Groq (llama-3.3-70b-versatile)
 
 The architecture is a single deployable unit on Vercel. The Python/FastAPI backend described in early planning was consolidated into TypeScript to reduce deployment complexity for the hackathon. All Bright Data API calls happen server-side — the client never sees API keys or raw scraper responses.
 
@@ -38,7 +38,8 @@ The architecture is a single deployable unit on Vercel. The Python/FastAPI backe
 │                   BRIGHT DATA TOOLS (parallel)                   │
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │  Web Scraper  │  │  Web Scraper  │  │  SERP API    │          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │  Web Unlocker │  │  Web Unlocker │  │  SERP API    │          │
 │  │  (Indeed:     │  │  (LinkedIn:   │  │  + Unlocker   │          │
 │  │   age, repost)│  │   headcount)  │  │  (Glassdoor,  │          │
 │  │              │  │              │  │   news)       │          │
@@ -50,7 +51,7 @@ The architecture is a single deployable unit on Vercel. The Python/FastAPI backe
 │              SCORING ENGINE                                      │
 │                                                                  │
 │  deterministic.ts → Fixed-weight signal scoring (Python-style)  │
-│  synthesis.ts     → Google Gemini synthesis (±10 pts max)       │
+│  synthesis.ts     → Groq synthesis (±10 pts max)       │
 └────────────────────────┬────────────────────────────────────────┘
                          │ Phase 6: Stream results via SSE
                          ▼
@@ -82,11 +83,11 @@ Posting age, headcount delta, and repost count are scored by TypeScript function
 | Module | Path | Responsibility |
 |---|---|---|
 | SERP Agent | `lib/agents/serp.ts` | Job discovery via Bright Data SERP API (Google search) |
-| Indeed Agent | `lib/agents/indeed.ts` | Posting age, repost count via Bright Data Web Scraper |
-| LinkedIn Agent | `lib/agents/linkedin.ts` | Headcount, growth trajectory via Bright Data Web Scraper |
+| Indeed Agent | `lib/agents/indeed.ts` | Posting age, repost count via Bright Data Web Unlocker |
+| LinkedIn Agent | `lib/agents/linkedin.ts` | Headcount, growth trajectory via Bright Data Web Unlocker |
 | Web Unlocker Agent | `lib/agents/unlocker.ts` | Glassdoor reviews, company news via Bright Data SERP + Web Unlocker |
 | Deterministic Scoring | `lib/scoring/deterministic.ts` | Fixed-weight signal scoring (no LLM involved) |
-| LLM Synthesis | `lib/scoring/synthesis.ts` | Google Gemini synthesis with ±10 guardrail |
+| LLM Synthesis | `lib/scoring/synthesis.ts` | Groq synthesis with ±10 guardrail |
 | Orchestrator | `lib/orchestration/orchestrator.ts` | Coordinates all sub-agents, caching, SSE streaming |
 | Cache | `lib/orchestration/cache.ts` | In-memory TTL cache to prevent re-scraping |
 | Rate Limiter | `lib/middleware/rate-limiter.ts` | IP-based sliding window (5 req/min/IP) |
@@ -121,9 +122,9 @@ Posting age, headcount delta, and repost count are scored by TypeScript function
 | Frontend | Next.js 16 (App Router) | UI, routing, API routes |
 | Styling | Tailwind CSS v4 | Utility-first styling |
 | Type Validation | Zod | Runtime schema validation |
-| LLM | Google Gemini (gemini-1.5-flash) | Signal synthesis and score adjustment |
+| LLM | Groq (llama-3.3-70b-versatile) | Signal synthesis and score adjustment |
 | Job Discovery | Bright Data SERP API | Live Google search results |
-| Job Signals | Bright Data Web Scraper (Indeed) | Posting age, repost history |
-| Company Signals | Bright Data Web Scraper (LinkedIn) | Headcount, growth trajectory |
+| Job Signals | Bright Data Web Unlocker (Indeed) | Posting age, repost history |
+| Company Signals | Bright Data Web Unlocker (LinkedIn) | Headcount, growth trajectory |
 | Site Content | Bright Data SERP API + Web Unlocker | Glassdoor reviews, company news |
 | Deployment | Vercel | Next.js hosting (single deployment) |

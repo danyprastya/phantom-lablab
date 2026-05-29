@@ -7,8 +7,8 @@ Phantom is a hiring market intelligence agent that discovers job postings from p
 ### Prerequisites
 
 - Node.js 18+ and npm
-- Bright Data account with SERP API, Web Scraper, and Web Unlocker zones
-- Google Gemini API key
+- Bright Data account with SERP API and Web Unlocker zones
+- Groq API key
 
 ### Setup
 
@@ -44,7 +44,7 @@ Every job posting receives a **Hiring Reality Score** (0–100) computed from 5 
 **Raw ghost score** = sum of triggered signal weights (max 100).
 **Hiring Reality Score** = 100 − ghost score.
 
-The LLM (Google Gemini) adjusts the final score by ±10 points max based on signal coherence and generates a plain-English explanation. The LLM never generates facts — it only synthesises signals sourced from Bright Data.
+The LLM (Groq / llama-3.3-70b-versatile) adjusts the final score by ±10 points max based on signal coherence and generates a plain-English explanation. The LLM never generates facts — it only synthesises signals sourced from Bright Data.
 
 ### Verdicts
 

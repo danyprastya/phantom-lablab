@@ -1,38 +1,38 @@
 /**
- * LinkedIn Agent — Fetches company headcount and growth signals via Bright Data Web Scraper.
+ * LinkedIn Agent — Fetches company headcount and growth signals via Bright Data.
+ *
+ * Step 1: Uses SERP API to find the LinkedIn company page URL (Google search)
+ * Step 2: Uses Web Unlocker API to fetch the LinkedIn page as raw HTML
  *
  * Extracts:
  * - headcount: Current employee count
  * - headcount_delta_pct: Growth trajectory (positive = growing, negative = shrinking)
  *
- * Uses keyword heuristics to estimate growth direction from LinkedIn company page content.
- *
  * @module agents/linkedin
  */
 import { getEnv } from "@/lib/config/env";
 import { BRIGHT_DATA_API_URL } from "@/lib/data";
-import { parseGoogleSerpHtml } from "@/lib/parsers/serp-html";
 import type { LinkedInSignals } from "@/lib/types";
 
-export async function fetchLinkedInSignals(query: string, company?: string): Promise<LinkedInSignals> {
+export async function fetchLinkedInSignals(query: string, company?: string): Promise<{ data: LinkedInSignals; error?: string }> {
   const env = getEnv();
   const searchTarget = company || query;
 
-  // Step 1: Try to find the actual LinkedIn company URL via Google search.
-  // This is far more reliable than guessing the slug from the company name.
+  // Step 1: Find LinkedIn company URL via Google SERP API
   const linkedinUrl = await resolveLinkedInUrl(searchTarget, env.BRIGHT_DATA_API_KEY, env.BRIGHT_DATA_SERP_ZONE)
     ?? `https://www.linkedin.com/company/${slugify(searchTarget)}/about/`;
 
+  // Step 2: Fetch the actual LinkedIn page via Web Unlocker (handles anti-bot)
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${env.BRIGHT_DATA_API_KEY}`,
   };
 
+  // Use Web Unlocker zone (REST API) — NOT Browser API zone
   const payload = {
-    zone: env.BRIGHT_DATA_WEB_SCRAPER_ZONE,
+    zone: env.BRIGHT_DATA_WEB_UNLOCKER_ZONE,
     url: linkedinUrl,
-    format: "json",
-    data_format: "markdown",
+    format: "raw",  // Required by Bright Data docs — returns raw HTML
   };
 
   try {
@@ -44,55 +44,62 @@ export async function fetchLinkedInSignals(query: string, company?: string): Pro
     });
 
     if (!response.ok) {
-      console.error(`LinkedIn HTTP ${response.status}`);
+      const errMsg = `LinkedIn: HTTP ${response.status}`;
+      console.error(errMsg);
       return {
+        data: {
+          headcount: null,
+          headcount_delta_pct: null,
+          recent_posts: null,
+          source: "LinkedIn Scraper",
+        },
+        error: errMsg,
+      };
+    }
+
+    // Web Unlocker returns raw HTML
+    const content = await response.text();
+
+    const signals = parseLinkedInHtml(content, searchTarget);
+
+    if (signals) {
+      console.log(`LinkedIn: headcount=${signals.headcount}, delta=${signals.headcount_delta_pct}% for: "${searchTarget}"`);
+      return { data: signals };
+    } else {
+      console.warn(`LinkedIn: no parseable signals for "${searchTarget}"`);
+      return {
+        data: {
+          headcount: null,
+          headcount_delta_pct: null,
+          recent_posts: null,
+          source: "LinkedIn Scraper",
+        },
+        error: `LinkedIn: no parseable data for ${searchTarget}`,
+      };
+    }
+  } catch (err) {
+    const errMsg = `LinkedIn: network error: ${String(err).slice(0, 100)}`;
+    console.error(errMsg);
+    return {
+      data: {
         headcount: null,
         headcount_delta_pct: null,
         recent_posts: null,
         source: "LinkedIn Scraper",
-      };
-    }
-
-    let content: string;
-    try {
-      const data = (await response.json()) as Record<string, unknown>;
-      content = (data.content ?? data.text ?? JSON.stringify(data)) as string;
-    } catch {
-      content = await response.text();
-    }
-
-    const signals = parseLinkedInMarkdown(content, searchTarget);
-
-    if (signals) {
-      console.log(`LinkedIn: headcount=${signals.headcount}, delta=${signals.headcount_delta_pct}% for: "${searchTarget}"`);
-    } else {
-      console.warn(`LinkedIn: no parseable signals for "${searchTarget}"`);
-    }
-
-    return signals ?? {
-      headcount: null,
-      headcount_delta_pct: null,
-      recent_posts: null,
-      source: "LinkedIn Scraper",
-    };
-  } catch (err) {
-    console.error(`LinkedIn error: ${err}`);
-    return {
-      headcount: null,
-      headcount_delta_pct: null,
-      recent_posts: null,
-      source: "LinkedIn Scraper",
+      },
+      error: errMsg,
     };
   }
 }
 
 /**
- * Resolves the actual LinkedIn company URL by searching Google.
+ * Resolves the actual LinkedIn company URL by searching Google via SERP API.
  * Returns the first linkedin.com/company/ URL found, or null.
  */
 async function resolveLinkedInUrl(company: string, apiKey: string, zone: string): Promise<string | null> {
   const encodedQuery = encodeURIComponent(`${company} site:linkedin.com/company`);
-  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&hl=en&num=3`;
+  // brd_json=1 required for parsed JSON output from SERP API
+  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&brd_json=1&hl=en&num=3`;
 
   try {
     const response = await fetch(BRIGHT_DATA_API_URL, {
@@ -101,17 +108,31 @@ async function resolveLinkedInUrl(company: string, apiKey: string, zone: string)
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ zone, url: searchUrl }),
+      body: JSON.stringify({ zone, url: searchUrl, format: "raw" }),
       signal: AbortSignal.timeout(15_000),
     });
 
     if (!response.ok) return null;
 
-    const html = await response.text();
-    const parsed = parseGoogleSerpHtml(html, 5);
+    const data = (await response.json()) as Record<string, unknown>;
 
-    for (const item of parsed) {
-      const url = item.url;
+    // Handle brd_json=1 (results[]), parsed_light (organic[]), and full parsed (navigation[])
+    let organic: Array<Record<string, unknown>> = [];
+    if (Array.isArray(data.organic)) {
+      organic = data.organic as Array<Record<string, unknown>>;
+    } else if (Array.isArray(data.results)) {
+      organic = (data.results as Array<Record<string, unknown>>).filter(
+        (r) => (r.type as string) === "organic"
+      );
+    } else if (Array.isArray(data.navigation)) {
+      organic = data.navigation as Array<Record<string, unknown>>;
+    } else {
+      console.warn(`[linkedin.ts] SERP (resolveLinkedInUrl): unexpected response shape. Keys: [${Object.keys(data).join(", ")}]`);
+      console.warn(`[linkedin.ts] SERP (resolveLinkedInUrl): first 200 chars: ${JSON.stringify(data).slice(0, 200)}`);
+    }
+
+    for (const item of organic) {
+      const url = (item.link ?? item.url ?? "") as string;
       if (/linkedin\.com\/company\/[a-z0-9-]+/i.test(url)) {
         const match = url.match(/(https?:\/\/[^/]*linkedin\.com\/company\/[a-z0-9-]+)/i);
         if (match) {
@@ -128,7 +149,7 @@ async function resolveLinkedInUrl(company: string, apiKey: string, zone: string)
   return null;
 }
 
-function parseLinkedInMarkdown(content: string, company: string): LinkedInSignals | null {
+function parseLinkedInHtml(content: string, company: string): LinkedInSignals | null {
   if (!content || content.length < 50) return null;
 
   const lower = content.toLowerCase();

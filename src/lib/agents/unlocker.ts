@@ -17,40 +17,61 @@ import {
   EXPANSION_KEYWORDS,
   FUNDING_KEYWORDS,
 } from "@/lib/data";
-import { parseGoogleSerpHtml } from "@/lib/parsers/serp-html";
 import type { WebUnlockerSignals } from "@/lib/types";
 
-export async function fetchUnlockerSignals(query: string, company?: string): Promise<WebUnlockerSignals | null> {
+export async function fetchUnlockerSignals(query: string, company?: string): Promise<{ data: WebUnlockerSignals | null; error?: string }> {
   const env = getEnv();
   const searchTarget = company || query;
   const apiKey = env.BRIGHT_DATA_API_KEY;
   const zone = env.BRIGHT_DATA_SERP_ZONE;
 
-  const [glassdoorContent, newsContent] = await Promise.all([
-    fetchGlassdoorViaGoogle(searchTarget, apiKey, zone),
-    fetchNewsViaGoogle(searchTarget, apiKey, zone),
-  ]);
+  try {
+    const [glassdoorContent, newsContent] = await Promise.all([
+      fetchGlassdoorViaGoogle(searchTarget, apiKey, zone),
+      fetchNewsViaGoogle(searchTarget, apiKey, zone),
+    ]);
 
-  const signals = analyseSignals(glassdoorContent, newsContent);
+    const signals = analyseSignals(glassdoorContent, newsContent);
 
-  console.log(
-    `Web Unlocker: freeze=${signals.glassdoor_mentions_freeze}, layoffs=${signals.glassdoor_mentions_layoffs}, ` +
-    `expansion=${signals.has_expansion_news}, funding=${signals.has_funding_news} for: "${searchTarget}"`
-  );
+    console.log(
+      `Web Unlocker: freeze=${signals.glassdoor_mentions_freeze}, layoffs=${signals.glassdoor_mentions_layoffs}, ` +
+      `expansion=${signals.has_expansion_news}, funding=${signals.has_funding_news} for: "${searchTarget}"`
+    );
 
-  return signals;
+    const error = glassdoorContent === null && newsContent === null
+      ? "Unlocker: both Glassdoor and News searches returned no data"
+      : undefined;
+
+    return { data: signals, error };
+  } catch (err) {
+    const errMsg = `Unlocker: ${String(err).slice(0, 100)}`;
+    console.error(errMsg);
+    return {
+      data: {
+        glassdoor_mentions_freeze: false,
+        glassdoor_mentions_layoffs: false,
+        glassdoor_review_snippets: null,
+        recent_news: null,
+        has_expansion_news: false,
+        has_funding_news: false,
+        source: "Web Unlocker",
+      },
+      error: errMsg,
+    };
+  }
 }
 
 async function fetchGlassdoorViaGoogle(company: string, apiKey: string, zone: string): Promise<string | null> {
   const encodedQuery = encodeURIComponent(`${company} site:glassdoor.com reviews`);
-  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&hl=en`;
+  // brd_json=1 required for parsed JSON output from SERP API
+  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&brd_json=1&hl=en&gl=us`;
 
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
   };
 
-  const payload = { zone, url: searchUrl };
+  const payload = { zone, url: searchUrl, format: "raw" };
 
   try {
     const response = await fetch(BRIGHT_DATA_API_URL, {
@@ -60,11 +81,41 @@ async function fetchGlassdoorViaGoogle(company: string, apiKey: string, zone: st
       signal: AbortSignal.timeout(25_000),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(`Glassdoor SERP HTTP ${response.status} for "${company}"`);
+      return null;
+    }
 
-    const html = await response.text();
-    const parsed = parseGoogleSerpHtml(html, 5);
-    return parsed.map((item) => `${item.title} ${item.snippet}`).join(" ");
+    const text = await response.text();
+    let data: Record<string, unknown>;
+
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      // Response may be raw HTML instead of JSON — use text directly for keyword analysis
+      if (text && text.length > 50) {
+        console.log(`Glassdoor SERP: got HTML (${text.length} chars) for "${company}", using as raw text`);
+        return text;
+      }
+      console.warn(`Glassdoor SERP: empty/truncated response for "${company}" (${text.length} chars)`);
+      return null;
+    }
+
+    // Handle brd_json=1 (results[]), parsed_light (organic[]), and full parsed (navigation[])
+    let organic: Array<Record<string, unknown>> = [];
+    if (Array.isArray(data.organic)) {
+      organic = data.organic as Array<Record<string, unknown>>;
+    } else if (Array.isArray(data.results)) {
+      organic = (data.results as Array<Record<string, unknown>>).filter(
+        (r) => (r.type as string) === "organic"
+      );
+    } else if (Array.isArray(data.navigation)) {
+      organic = data.navigation as Array<Record<string, unknown>>;
+    } else {
+      console.warn(`[unlocker.ts] Glassdoor SERP: unexpected response shape. Keys: [${Object.keys(data).join(", ")}]`);
+      console.warn(`[unlocker.ts] Glassdoor SERP: first 200 chars: ${JSON.stringify(data).slice(0, 200)}`);
+    }
+    return organic.slice(0, 5).map((item) => String(item.description ?? item.snippet ?? item.title ?? "")).join(" ");
   } catch (err) {
     console.warn(`Glassdoor Google search failed for "${company}": ${err}`);
     return null;
@@ -76,14 +127,15 @@ async function fetchNewsViaGoogle(company: string, apiKey: string, zone: string)
   const currentYear = new Date().getFullYear();
   const previousYear = currentYear - 1;
   const encodedQuery = encodeURIComponent(`${company} hiring expansion funding ${previousYear} ${currentYear}`);
-  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&tbm=nws&hl=en`;
+  // brd_json=1 required for parsed JSON output; tbm=nws for Google News
+  const searchUrl = `https://www.google.com/search?q=${encodedQuery}&brd_json=1&tbm=nws&hl=en&gl=us`;
 
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
   };
 
-  const payload = { zone, url: searchUrl };
+  const payload = { zone, url: searchUrl, format: "raw" };
 
   try {
     const response = await fetch(BRIGHT_DATA_API_URL, {
@@ -93,11 +145,33 @@ async function fetchNewsViaGoogle(company: string, apiKey: string, zone: string)
       signal: AbortSignal.timeout(25_000),
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.warn(`News SERP HTTP ${response.status} for "${company}"`);
+      return null;
+    }
 
-    const html = await response.text();
-    const parsed = parseGoogleSerpHtml(html, 5);
-    return parsed.map((item) => `${item.title} ${item.snippet}`).join(" ");
+    const data = (await response.json()) as Record<string, unknown>;
+    // Handle multiple Bright Data response shapes:
+    // - parsed_light: { organic: [...] }
+    // - brd_json=1:   { results: [...], general, input, navigation }
+    // - tbm=nws full: { general, input, navigation: [...] }
+    let items: Array<Record<string, unknown>> = [];
+    if (Array.isArray(data.organic)) {
+      items = data.organic as Array<Record<string, unknown>>;
+    } else if (Array.isArray(data.news)) {
+      items = data.news as Array<Record<string, unknown>>;
+    } else if (Array.isArray(data.navigation)) {
+      items = data.navigation as Array<Record<string, unknown>>;
+    } else if (Array.isArray(data.results)) {
+      // brd_json=1 format — filter to organic results only
+      items = (data.results as Array<Record<string, unknown>>).filter(
+        (r) => (r.type as string) === "organic"
+      );
+    } else {
+      console.warn(`[unlocker.ts] News SERP: unexpected response shape. Keys: [${Object.keys(data).join(", ")}]`);
+      console.warn(`[unlocker.ts] News SERP: first 200 chars: ${JSON.stringify(data).slice(0, 200)}`);
+    }
+    return items.slice(0, 5).map((item) => String(item.description ?? item.snippet ?? item.title ?? "")).join(" ");
   } catch (err) {
     console.warn(`News Google search failed for "${company}": ${err}`);
     return null;

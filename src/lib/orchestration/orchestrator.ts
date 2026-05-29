@@ -5,7 +5,7 @@
  * Phase 2: Parallel enrichment (Indeed, LinkedIn, Web Unlocker — simultaneously)
  * Phase 3: Merge signals per job
  * Phase 4: Deterministic scoring (TypeScript, no LLM)
- * Phase 5: LLM synthesis (Gemini, ±10 pts max)
+ * Phase 5: LLM synthesis (Groq, ±10 pts max)
  * Phase 6: Sort, cache, and stream results via SSE
  *
  * Uses an async generator to yield StreamEvents progressively so the frontend
@@ -28,31 +28,46 @@ import type { ScanRequest, StreamEvent, JobResult, MergedJobSignals } from "@/li
 
 const NULL_EVENT = { agent_name: null, status: null, data: null } as const;
 
-async function safeFetch<T>(fn: () => Promise<T | null>, name: string): Promise<T | null> {
+type AgentResult<T> = { data: T | null; error?: string };
+
+async function safeFetch<T>(fn: () => Promise<AgentResult<T>>, name: string): Promise<AgentResult<T>> {
   try {
     return await fn();
   } catch (err) {
-    console.error(`Error in ${name}: ${err}`);
-    return null;
+    const errMsg = `${name}: ${String(err).slice(0, 100)}`;
+    console.error(errMsg);
+    return { data: null, error: errMsg };
   }
 }
 
 async function enrichAndScore(
   query: string,
-  jobInfo: { company: string; job_title: string; location: string; url: string; snippet: string }
-): Promise<JobResult | null> {
+  jobInfo: { company: string; job_title: string; location: string; url: string; snippet: string; salary: string | null }
+): Promise<{ result: JobResult | null; errors: string[] }> {
   const company = jobInfo.company;
   const jobTitle = jobInfo.job_title;
   const location = jobInfo.location ?? "Not specified";
   const url = jobInfo.url ?? "";
   const snippet = jobInfo.snippet ?? "";
+  const serpSalary = jobInfo.salary;
+
+  const errors: string[] = [];
 
   try {
-    const [indeedResult, linkedinResult, unlockerResult] = await Promise.all([
-      safeFetch(() => fetchIndeedSignals(query, company), "indeed"),
-      safeFetch(() => fetchLinkedInSignals(query, company), "linkedin"),
-      safeFetch(() => fetchUnlockerSignals(query, company), "unlocker"),
+    const [indeedRes, linkedinRes, unlockerRes] = await Promise.all([
+      safeFetch(() => fetchIndeedSignals(query, company), "Indeed"),
+      safeFetch(() => fetchLinkedInSignals(query, company), "LinkedIn"),
+      safeFetch(() => fetchUnlockerSignals(query, company), "Unlocker"),
     ]);
+
+    // Extract data and errors from wrapped results
+    const indeedResult = indeedRes.data;
+    const linkedinResult = linkedinRes.data;
+    const unlockerResult = unlockerRes.data;
+
+    if (indeedRes.error) errors.push(indeedRes.error);
+    if (linkedinRes.error) errors.push(linkedinRes.error);
+    if (unlockerRes.error) errors.push(unlockerRes.error);
 
     const merged: MergedJobSignals = {
       job_title: jobTitle,
@@ -66,10 +81,17 @@ async function enrichAndScore(
     };
 
     const det = computeDeterministicScore(merged);
-    return await synthesiseScore(merged, det);
+    const result = await synthesiseScore(merged, det);
+
+    // Attach salary — prefer Indeed's salary (more accurate), fall back to SERP snippet
+    if (result) {
+      result.salary = indeedResult?.salary ?? serpSalary ?? undefined;
+    }
+
+    return { result, errors };
   } catch (err) {
     console.error(`Error processing job "${jobTitle}" at "${company}": ${err}`);
-    return null;
+    return { result: null, errors };
   }
 }
 
@@ -196,11 +218,10 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
     data: null,
   };
 
-  const wrapped = jobsInfo.map((job) =>
-    enrichAndScore(query, job).then((result) => ({ result, promiseId: Symbol() }))
-  );
+  const wrapped = jobsInfo.map((job) => enrichAndScore(query, job));
 
   const scoredJobs: JobResult[] = [];
+  const agentErrors: string[] = [];
   const deadline = Date.now() + SCAN_TIMEOUT_MS;
   const timeoutPromise = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error("scan_timeout")), SCAN_TIMEOUT_MS)
@@ -228,27 +249,43 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
           data: winner.value.result as unknown as Record<string, unknown>,
         };
       }
+      // Collect per-job agent errors for consolidated reporting
+      if (winner.value.errors && winner.value.errors.length > 0) {
+        for (const err of winner.value.errors) {
+          if (!agentErrors.includes(err)) agentErrors.push(err);
+        }
+      }
     } catch {
       break;
     }
   }
 
+  const indeedFailed = agentErrors.some((e) => e.startsWith("Indeed:"));
+  const linkedinFailed = agentErrors.some((e) => e.startsWith("LinkedIn:"));
+  const unlockerFailed = agentErrors.some((e) => e.startsWith("Unlocker:"));
+
   yield {
     ...NULL_EVENT,
-    event_type: "agent_status", agent_name: "indeed", status: "complete",
-    message: "Indeed signals collected",
+    event_type: "agent_status", agent_name: "indeed", status: indeedFailed ? "failed" : "complete",
+    message: indeedFailed
+      ? `Indeed signals failed — ${agentErrors.find((e) => e.startsWith("Indeed:"))}`
+      : "Indeed signals collected",
     data: null,
   };
   yield {
     ...NULL_EVENT,
-    event_type: "agent_status", agent_name: "linkedin", status: "complete",
-    message: "LinkedIn signals collected",
+    event_type: "agent_status", agent_name: "linkedin", status: linkedinFailed ? "failed" : "complete",
+    message: linkedinFailed
+      ? `LinkedIn signals failed — ${agentErrors.find((e) => e.startsWith("LinkedIn:"))}`
+      : "LinkedIn signals collected",
     data: null,
   };
   yield {
     ...NULL_EVENT,
-    event_type: "agent_status", agent_name: "unlocker", status: "complete",
-    message: "Glassdoor & news signals collected",
+    event_type: "agent_status", agent_name: "unlocker", status: unlockerFailed ? "failed" : "complete",
+    message: unlockerFailed
+      ? `Glassdoor & news signals failed — ${agentErrors.find((e) => e.startsWith("Unlocker:"))}`
+      : "Glassdoor & news signals collected",
     data: null,
   };
 
