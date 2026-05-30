@@ -78,7 +78,7 @@ async function fetchGlassdoorViaGoogle(company: string, apiKey: string, zone: st
       method: "POST",
       headers,
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(18_000),
     });
 
     if (!response.ok) {
@@ -142,7 +142,7 @@ async function fetchNewsViaGoogle(company: string, apiKey: string, zone: string)
       method: "POST",
       headers,
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(25_000),
+      signal: AbortSignal.timeout(18_000),
     });
 
     if (!response.ok) {

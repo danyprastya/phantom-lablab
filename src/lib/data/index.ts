@@ -17,8 +17,8 @@ export const POSTING_AGE_GHOST_THRESHOLD_DAYS = 60;
 export const POSTING_AGE_WARN_THRESHOLD_DAYS = 30;
 export const REPOST_GHOST_THRESHOLD = 2;
 
-export const MAX_JOBS_PER_SEARCH = 10;
-export const SCAN_TIMEOUT_MS = 60_000;
+export const MAX_JOBS_PER_SEARCH = 6;
+export const SCAN_TIMEOUT_MS = 45_000;
 
 export const BRIGHT_DATA_API_URL = "https://api.brightdata.com/request";
 

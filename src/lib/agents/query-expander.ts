@@ -69,15 +69,17 @@ export async function expandQuery(query: string): Promise<ExpandedQueries> {
     const parsed = JSON.parse(cleaned) as string[];
 
     if (Array.isArray(parsed) && parsed.length >= 2 && parsed.every((s) => typeof s === "string")) {
-      console.log(`Query expander: "${trimmed}" → ${parsed.length} variations`);
-      return { original: trimmed, variations: parsed.slice(0, 3) };
+      const cleaned = stripRedundantJobSuffixes(trimmed, parsed.slice(0, 3));
+      console.log(`Query expander: "${trimmed}" → ${cleaned.length} variations`);
+      return { original: trimmed, variations: cleaned };
     }
 
     throw new Error("Invalid LLM response format");
   } catch (err) {
     console.warn(`Query expander LLM failed, using fallback: ${err}`);
     try {
-      return { original: trimmed, variations: deterministicExpand(trimmed) };
+      const fallback = deterministicExpand(trimmed);
+      return { original: trimmed, variations: stripRedundantJobSuffixes(trimmed, fallback) };
     } catch {
       // Last resort: return the original query with a simple suffix
       return { original: trimmed, variations: [`${trimmed} jobs`, `${trimmed} hiring`] };
@@ -127,9 +129,36 @@ const JOB_KEYWORDS = [
   "vacancy", "vacancies",
 ];
 
+/**
+ * Detects whether a query string already contains job-related keywords.
+ * Used to prevent double-suffixing when expanding queries.
+ */
 function queryContainsJobKeyword(query: string): boolean {
   const lower = query.toLowerCase();
   return JOB_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
+/**
+ * Strips redundant job keywords from expanded variations when the original
+ * query already contains them. Prevents double-suffixed searches that dilute
+ * Google search quality.
+ *
+ * Example: original="hiring software engineer", variation="hiring software engineer jobs"
+ *          → cleaned="hiring software engineer"
+ */
+function stripRedundantJobSuffixes(original: string, variations: string[]): string[] {
+  const originalHasJobKeyword = queryContainsJobKeyword(original);
+  if (!originalHasJobKeyword) return variations;
+
+  return variations.map((v) => {
+    for (const kw of JOB_KEYWORDS) {
+      // Only strip suffix-position keywords (at the end), not ones mid-query
+      const suffixRegex = new RegExp(`\\s+${kw}\\s*$`, "i");
+      const cleaned = v.replace(suffixRegex, "");
+      if (cleaned !== v && cleaned.trim().length >= 3) return cleaned.trim();
+    }
+    return v;
+  });
 }
 
 /**

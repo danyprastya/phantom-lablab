@@ -35,7 +35,7 @@ export async function fetchIndeedSignals(query: string, company?: string): Promi
       method: "POST",
       headers,
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(60_000),
+      signal: AbortSignal.timeout(40_000),
     });
 
     if (!response.ok) {

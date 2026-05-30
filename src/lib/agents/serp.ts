@@ -11,7 +11,7 @@ import { getEnv } from "@/lib/config/env";
 import { BRIGHT_DATA_API_URL } from "@/lib/data";
 import type { SERPResult } from "@/lib/types";
 
-export async function fetchSerpResults(query: string, maxResults = 10): Promise<SERPResult[]> {
+export async function fetchSerpResults(query: string, maxResults = 5): Promise<SERPResult[]> {
   const env = getEnv();
   // Query is already expanded by the query-expander, don't add extra suffixes
   const encodedQuery = encodeURIComponent(query);
@@ -35,7 +35,7 @@ export async function fetchSerpResults(query: string, maxResults = 10): Promise<
       method: "POST",
       headers,
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!response.ok) {
@@ -91,7 +91,7 @@ export async function fetchSerpResults(query: string, maxResults = 10): Promise<
  */
 export async function fetchMultiSerpResults(
   queryVariations: string[],
-  maxResultsPerQuery = 10
+  maxResultsPerQuery = 5
 ): Promise<SERPResult[]> {
   const results = await Promise.all(
     queryVariations.map((q) => fetchSerpResults(q, maxResultsPerQuery))

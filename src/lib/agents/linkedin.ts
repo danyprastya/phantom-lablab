@@ -40,7 +40,7 @@ export async function fetchLinkedInSignals(query: string, company?: string): Pro
       method: "POST",
       headers,
       body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(20_000),
     });
 
     if (!response.ok) {
@@ -109,7 +109,7 @@ async function resolveLinkedInUrl(company: string, apiKey: string, zone: string)
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ zone, url: searchUrl, format: "raw" }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) return null;
