@@ -13,7 +13,7 @@
  *
  * @module orchestration/orchestrator
  */
-import { fetchMultiSerpResults, extractJobInfoFromSerp } from "@/lib/agents/serp";
+import { fetchMultiSerpResults, fetchSerpResults, extractJobInfoFromSerp } from "@/lib/agents/serp";
 import { fetchIndeedSignals } from "@/lib/agents/indeed";
 import { fetchLinkedInSignals } from "@/lib/agents/linkedin";
 import { fetchUnlockerSignals } from "@/lib/agents/unlocker";
