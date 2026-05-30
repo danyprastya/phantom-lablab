@@ -22,7 +22,7 @@ export interface ExpandedQueries {
   variations: string[];
 }
 
-const EXPANSION_PROMPT = `You are a job search query optimizer. Given a natural language job search query, generate 3 diverse Google search variations that will find relevant job postings.
+const EXPANSION_PROMPT = `You are a job search query optimizer. Given a natural language job search query, generate 2 diverse Google search variations that will find relevant job postings.
 
 RULES:
 1. Each variation should use different synonyms and phrasings
@@ -32,10 +32,10 @@ RULES:
 5. If the query mentions an industry/domain, include related terms
 6. Keep each variation under 10 words
 
-Respond ONLY with a JSON array of 3 strings. No markdown, no explanation.
+Respond ONLY with a JSON array of 2 strings. No markdown, no explanation.
 
 Example input: "frontend dev react startup"
-Example output: ["frontend developer react startup jobs", "react engineer hiring startup", "front-end web developer react careers"]`;
+Example output: ["frontend developer react startup jobs", "react engineer hiring startup"]`;
 
 /**
  * Expands a user query into multiple search variations using Groq.
@@ -68,8 +68,8 @@ export async function expandQuery(query: string): Promise<ExpandedQueries> {
     const cleaned = text.replace(/```json?\n?/g, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(cleaned) as string[];
 
-    if (Array.isArray(parsed) && parsed.length >= 2 && parsed.every((s) => typeof s === "string")) {
-      const cleaned = stripRedundantJobSuffixes(trimmed, parsed.slice(0, 3));
+    if (Array.isArray(parsed) && parsed.length >= 1 && parsed.every((s) => typeof s === "string")) {
+      const cleaned = stripRedundantJobSuffixes(trimmed, parsed.slice(0, 2));
       console.log(`Query expander: "${trimmed}" → ${cleaned.length} variations`);
       return { original: trimmed, variations: cleaned };
     }
@@ -217,10 +217,10 @@ export function deterministicExpand(query: string): string[] {
     variations.push(secondHasJobKeyword ? secondExpansion : `${secondExpansion} careers`);
   }
 
-  // Always ensure at least 2 variations
-  if (variations.length < 2) {
+  // Always ensure at least 1 variation (raw query is already being searched separately)
+  if (variations.length < 1) {
     variations.push(hasJobKeyword ? query : `${query} careers openings`);
   }
 
-  return variations.slice(0, 3);
+  return variations.slice(0, 2);
 }

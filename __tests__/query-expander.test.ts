@@ -9,14 +9,14 @@ import { describe, it, expect } from "vitest";
 import { deterministicExpand } from "@/lib/agents/query-expander";
 
 describe("deterministicExpand", () => {
-  it("should always return at least 2 variations", () => {
+  it("should always return at least 1 variation", () => {
     const result = deterministicExpand("random search query");
-    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("should return at most 3 variations", () => {
+  it("should return at most 2 variations", () => {
     const result = deterministicExpand("software engineer remote");
-    expect(result.length).toBeLessThanOrEqual(3);
+    expect(result.length).toBeLessThanOrEqual(2);
   });
 
   it("should include the original query with 'jobs hiring now' when no job keyword present", () => {
@@ -98,7 +98,7 @@ describe("deterministicExpand", () => {
 
   it("should handle queries with no known synonyms", () => {
     const result = deterministicExpand("obscure niche job title xyz");
-    expect(result.length).toBeGreaterThanOrEqual(2);
+    expect(result.length).toBeGreaterThanOrEqual(1);
     expect(result[0]).toContain("obscure niche job title xyz");
   });
 

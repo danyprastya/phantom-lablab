@@ -120,23 +120,32 @@ export async function* runScan(request: ScanRequest): AsyncGenerator<StreamEvent
   yield {
     ...NULL_EVENT,
     event_type: "agent_status", agent_name: "serp", status: "querying",
-    message: "Analyzing your query and expanding search variations...",
+    message: "Searching for job postings across the web...",
     data: null,
   };
 
-  // Step 1: NLP query expansion — generate 2-3 search variations
-  const expanded = await expandQuery(query);
-  console.log(`Query expansion: "${query}" → [${expanded.variations.join(" | ")}]`);
+  // Step 1: Fire the raw query search and query expansion in parallel.
+  // The raw query hits Google immediately while the LLM expands in the background,
+  // saving 0.5-2s of blocked time.
+  const [rawSerpPromise, expanded] = await Promise.all([
+    fetchSerpResults(query, MAX_JOBS_PER_SEARCH),
+    expandQuery(query),
+  ]);
 
-  yield {
-    ...NULL_EVENT,
-    event_type: "agent_status", agent_name: "serp", status: "querying",
-    message: `Searching ${expanded.variations.length} query variations across the web...`,
-    data: null,
-  };
+  // Step 2: Run additional expanded variations through SERP (exclude raw query
+  // which we already searched). Cap at 2 extra so total SERP calls ≤3 but with
+  // overlap on the first one.
+  const extraQueries = expanded.variations
+    .filter((v) => v.toLowerCase() !== query.toLowerCase())
+    .slice(0, 2);
 
-  // Step 2: Run all variations through SERP in parallel
-  const rawSerpResults = await fetchMultiSerpResults(expanded.variations, MAX_JOBS_PER_SEARCH);
+  let rawSerpResults = rawSerpPromise;
+  if (extraQueries.length > 0) {
+    const extraResults = await fetchMultiSerpResults(extraQueries, MAX_JOBS_PER_SEARCH);
+    rawSerpResults = [...rawSerpResults, ...extraResults];
+  }
+
+  console.log(`Query expansion: "${query}" → [${expanded.variations.join(" | ")}] (${extraQueries.length} extra variations)`);
 
   // Step 3: Deduplicate and rank by TF-IDF relevance to original query
   const rankedResults = rankByRelevance(query, rawSerpResults);
